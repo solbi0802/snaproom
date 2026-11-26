@@ -1,5 +1,31 @@
 import { expect, test } from '@playwright/test'
 
+for (const selection of ['batch', 'one-by-one'] as const) {
+  test(`the live count follows all selected photos (${selection})`, async ({ page }) => {
+    await page.goto('/')
+    const files = ['first.png', 'second.png', 'third.png'].map(name => ({
+      name, mimeType: 'image/png',
+      buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5WQAAAAASUVORK5CYII=', 'base64'),
+    }))
+    const input = page.locator('input[type=file]')
+    const status = page.getByRole('status')
+    if (selection === 'batch') {
+      await input.setInputFiles(files)
+    } else {
+      for (const [index, file] of files.entries()) {
+        await input.setInputFiles(file)
+        await expect(status).toContainText(`${index + 1}장`)
+      }
+    }
+    await expect(status).toContainText('현재 3장')
+    await expect(page.getByRole('heading', { name: '선택한 사진' })).toContainText('3 / 4')
+    await page.getByRole('button', { name: 'second.png 제거' }).click()
+    await expect(status).toContainText('현재 2장')
+    await page.getByRole('button', { name: '모두 비우기' }).click()
+    await expect(status).toContainText('현재 0장')
+  })
+}
+
 test('sample selection, removal, and reset work without network uploads', async ({ page }, testInfo) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toContainText('사진 가져오기')
