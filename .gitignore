@@ -1,0 +1,20 @@
+# Local project instructions
+[Aa][Gg][Ee][Nn][Tt].[Mm][Dd]
+
+# Dependencies and generated output
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+.vercel/
+.cache/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+*.local
+*.log
+.DS_Store
+Thumbs.db

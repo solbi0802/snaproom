@@ -1,0 +1,6 @@
+import type { ReactNode } from 'react'
+import styles from './Notice.module.css'
+
+export function Notice({ children }: { children: ReactNode }) {
+  return <p className={styles.error} role="alert">{children}</p>
+}

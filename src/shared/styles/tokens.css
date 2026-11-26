@@ -1,0 +1,58 @@
+:root {
+  /* Snaproom: quiet surfaces, ink text, a single evergreen action color. */
+  --sr-color-surface: #ffffff;
+  --sr-color-workspace: #f3f5f5;
+  --sr-color-text: #253431;
+  --sr-color-muted: #687772;
+  --sr-color-disabled: #89968f;
+  --sr-color-border: #e2e8e5;
+  --sr-color-border-strong: #c5cfca;
+  --sr-color-hover: #f0f4f2;
+  --sr-color-accent: #176b62;
+  --sr-color-accent-hover: #11554e;
+  --sr-color-accent-soft: #e8f3ef;
+  --sr-color-on-accent: #ffffff;
+  --sr-color-selection: #d6eae2;
+  --sr-color-danger: #a43d35;
+  --sr-color-danger-surface: #fff4f3;
+  --sr-color-danger-border: #eccbc9;
+  --sr-color-badge-surface: #fffffff0;
+
+  --sr-font-family: Inter, "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --sr-text-caption: .6875rem; /* 11px: counts, metadata */
+  --sr-text-label: .75rem; /* 12px: compact controls */
+  --sr-text-body: .8125rem; /* 13px: task content */
+  --sr-text-section: .875rem; /* 14px: section heading */
+  --sr-text-brand: 1rem;
+  --sr-text-title: 1.25rem;
+  --sr-weight-regular: 400;
+  --sr-weight-medium: 500;
+  --sr-weight-semibold: 600;
+  --sr-leading-default: 1.5;
+  --sr-leading-loose: 1.7;
+
+  --sr-space-1: 4px;
+  --sr-space-2: 8px;
+  --sr-space-3: 12px;
+  --sr-space-4: 16px;
+  --sr-space-5: 20px;
+  --sr-space-6: 24px;
+  --sr-space-8: 32px;
+  --sr-space-10: 40px;
+  --sr-space-12: 48px;
+  --sr-radius-small: 4px;
+  --sr-radius-control: 6px;
+  --sr-radius-panel: 8px;
+  --sr-control-height: 32px;
+  --sr-touch-target: 44px;
+  --sr-header-height: 48px;
+  --sr-panel-header-height: 44px;
+  --sr-status-height: 28px;
+  --sr-panel-left: 216px;
+  --sr-panel-right: 224px;
+  --sr-content-width: 640px;
+  --sr-icon-size: 16px;
+  --sr-icon-size-large: 32px;
+  --sr-focus-width: 2px;
+  --sr-motion-fast: 120ms;
+}

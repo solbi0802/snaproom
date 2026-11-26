@@ -1,0 +1,35 @@
+{
+  "name": "snaproom",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": "^22.13.0 || >=24.0.0" },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "check:ui": "node scripts/check-ui.mjs",
+    "check": "npm run typecheck && npm run lint && npm run check:ui && npm run test && npm run build"
+  },
+  "dependencies": { "react": "19.3.1", "react-dom": "19.3.1" },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@playwright/test": "1.65.1",
+    "@types/node": "22.20.7",
+    "@types/react": "19.3.3",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.3.0",
+    "eslint": "10.15.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "^16.5.0",
+    "typescript": "~6.0.0",
+    "typescript-eslint": "8.74.0",
+    "vite": "8.4.0",
+    "vitest": "5.1.2"
+  }
+}

@@ -1,0 +1,1 @@
+.error { padding: var(--sr-space-2) var(--sr-space-3); border: 1px solid var(--sr-color-danger-border); background: var(--sr-color-danger-surface); color: var(--sr-color-danger); border-radius: var(--sr-radius-control); font-size: var(--sr-text-body); }
