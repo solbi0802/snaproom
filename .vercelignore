@@ -1,0 +1,9 @@
+[Aa][Gg][Ee][Nn][Tt].[Mm][Dd]
+.git/
+.cache/
+node_modules/
+coverage/
+playwright-report/
+test-results/
+.env
+.env.*

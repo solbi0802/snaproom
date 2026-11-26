@@ -1,0 +1,39 @@
+import { expect, test } from '@playwright/test'
+
+test('sample selection, removal, and reset work without network uploads', async ({ page }, testInfo) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('사진 가져오기')
+  await page.getByRole('button', { name: '샘플 일러스트로 둘러보기' }).click()
+  await expect(page.getByRole('heading', { name: '선택한 사진' })).toContainText('4 / 4')
+  await expect(page.getByRole('button', { name: '사진 선택하기' })).toBeDisabled()
+  await page.screenshot({ path: `.cache/${testInfo.project.name}-samples.png`, fullPage: true })
+  await page.getByRole('button', { name: '캔버스 가방 제거' }).click()
+  await expect(page.getByRole('heading', { name: '선택한 사진' })).toContainText('3 / 4')
+  await page.getByRole('button', { name: '모두 비우기' }).click()
+  await expect(page.getByRole('heading', { name: '선택한 사진' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '사진 선택하기' })).toBeEnabled()
+  const hasOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
+  expect(hasOverflow).toBe(false)
+})
+
+test('an unsupported file keeps the existing selection intact', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '샘플 일러스트로 둘러보기' }).click()
+  await page.getByRole('button', { name: '캔버스 가방 제거' }).click()
+  await page.locator('input[type=file]').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not a photo') })
+  await expect(page.getByRole('alert')).toContainText('JPG')
+  await expect(page.getByRole('heading', { name: '선택한 사진' })).toContainText('3 / 4')
+})
+
+test('a local PNG renders and can be removed', async ({ page }) => {
+  await page.goto('/')
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'photo.png', mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5WQAAAAASUVORK5CYII=', 'base64'),
+  })
+  const photo = page.getByRole('img', { name: 'photo.png' })
+  await expect(photo).toBeVisible()
+  await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1)
+  await page.getByRole('button', { name: 'photo.png 제거' }).click()
+  await expect(photo).toHaveCount(0)
+})
