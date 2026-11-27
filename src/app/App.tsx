@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
+import { CollageEditor } from "../features/editor/CollageEditor";
 import { MAX_PHOTOS, validateFiles } from "../features/upload/validateFiles";
+import type { Layout } from "../rendering/collage";
 import { Button, IconButton } from "../shared/ui/Button";
 import { Icon } from "../shared/ui/Icon";
 import { Notice } from "../shared/ui/Notice";
@@ -22,6 +24,8 @@ export function App() {
   const [message, setMessage] = useState("");
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<"select" | "edit" | "export">("select");
+  const [layout, setLayout] = useState<Layout>("grid");
   const fileInput = useRef<HTMLInputElement>(null);
   const replaceInput = useRef<HTMLInputElement>(null);
   const replaceId = useRef<string | null>(null);
@@ -29,6 +33,7 @@ export function App() {
   const activeUrls = useRef(new Set<string>());
   const dragDepth = useRef(0);
   const hintId = useId();
+  const stepLabel = { select: "사진 선택", edit: "사진 배치", export: "저장" }[step];
 
   useEffect(() => {
     const urls = activeUrls.current;
@@ -167,7 +172,7 @@ export function App() {
         </a>
         <span className={styles.documentName}>
           새 이미지<span>/</span>
-          <span>사진 선택</span>
+          <span>{stepLabel}</span>
         </span>
         <span className={styles.privacy}>
           <Icon name="lock" /> 로컬 작업
@@ -179,7 +184,7 @@ export function App() {
           <Button
             className={styles.addFiles}
             onClick={() => fileInput.current?.click()}
-            disabled={loading || photos.length >= MAX_PHOTOS}
+            disabled={step !== "select" || loading || photos.length >= MAX_PHOTOS}
           >
             <Icon name="plus" /> 사진 추가
           </Button>
@@ -210,10 +215,10 @@ export function App() {
         </aside>
         <main id="main" className={styles.main}>
           <div className={styles.workspaceBar}>
-            <WorkflowSteps current="select" />
+            <WorkflowSteps current={step} />
             <span className={styles.workspaceLabel}>작업 영역</span>
           </div>
-          <div className={styles.workspaceContent}>
+          <div className={styles.workspaceContent} hidden={step !== "select"}>
             <div className={styles.intro}>
               <h1>사진 가져오기</h1>
               <p className={styles.description}>
@@ -356,9 +361,23 @@ export function App() {
                 <p className={styles.selectionHint}>
                   선택한 사진은 새로고침하면 사라져요.
                 </p>
+                <div className={styles.selectionActions}>
+                  <Button variant="primary" disabled={loading} onClick={() => setStep("edit")}>사진 배치 시작</Button>
+                </div>
               </section>
             )}
           </div>
+          {step !== "select" && (
+            <div className={styles.workspaceContent}>
+              <CollageEditor
+                photos={photos}
+                layout={photos.length < 3 ? "grid" : layout}
+                onLayout={setLayout}
+                onSelect={() => setStep("select")}
+                onExport={(exporting) => setStep(exporting ? "export" : "edit")}
+              />
+            </div>
+          )}
         </main>
         <aside className={styles.inspector} aria-label="가져오기 안내">
           <PanelHeader title="가져오기" />
@@ -387,7 +406,7 @@ export function App() {
         </aside>
       </div>
       <footer className={styles.footer}>
-        <span>사진 선택</span>
+        <span>{stepLabel}</span>
         <span>
           {photos.length}장 선택됨
           <span className={styles.footerDivider}>·</span>기기 내 처리
