@@ -56,7 +56,7 @@ export function App() {
     });
     setPhotos((current) => [...current, ...next]);
     setError("");
-    setMessage(`${photos.length + next.length}장의 사진을 추가했어요.`);
+    setMessage("사진을 추가했어요.");
   }
 
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -74,7 +74,7 @@ export function App() {
       })),
     );
     setError("");
-    setMessage("샘플 일러스트 4장을 불러왔어요.");
+    setMessage("샘플 일러스트를 불러왔어요.");
   }
 
   function removePhoto(id: string, failed = false) {
@@ -226,7 +226,7 @@ export function App() {
             </div>
             {error && <Notice>{error}</Notice>}
             <p className={styles.liveStatus} role="status">
-              {message}
+              {message && `${message} 현재 ${photos.length}장이 선택되어 있어요.`}
             </p>
             {photos.length > 0 && (
               <section
