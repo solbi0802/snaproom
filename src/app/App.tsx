@@ -21,7 +21,11 @@ export function App() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [loading, setLoading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const replaceInput = useRef<HTMLInputElement>(null);
+  const replaceId = useRef<string | null>(null);
+  const loadingRef = useRef(false);
   const activeUrls = useRef(new Set<string>());
   const dragDepth = useRef(0);
   const hintId = useId();
@@ -41,9 +45,9 @@ export function App() {
     }
   }
 
-  function addFiles(files: File[]) {
-    if (!files.length) return;
-    const issue = validateFiles(files, photos.length);
+  async function importFiles(files: File[], replacement?: PhotoPreview) {
+    if (!files.length || loadingRef.current) return;
+    const issue = validateFiles(files, photos.length - (replacement ? 1 : 0));
     if (issue) {
       setError(issue);
       setMessage("");
@@ -54,18 +58,70 @@ export function App() {
       activeUrls.current.add(url);
       return { id: crypto.randomUUID(), name: file.name, url, local: true };
     });
-    setPhotos((current) => [...current, ...next]);
+    loadingRef.current = true;
+    setLoading(true);
     setError("");
-    setMessage("사진을 추가했어요.");
+    setMessage("사진을 불러오는 중이에요.");
+
+    const results = await Promise.allSettled(next.map(async (photo) => {
+      const image = new Image();
+      image.src = photo.url;
+      await image.decode();
+      return photo;
+    }));
+    if (!next.some((photo) => activeUrls.current.has(photo.url))) return;
+
+    const ready: PhotoPreview[] = [];
+    const failed: PhotoPreview[] = [];
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") ready.push(result.value);
+      else failed.push(next[index]);
+    });
+    failed.forEach(release);
+
+    if (replacement && ready.length) {
+      setPhotos((current) => current.map((photo) => photo.id === replacement.id ? ready[0] : photo));
+      release(replacement);
+    } else if (ready.length) {
+      setPhotos((current) => [...current, ...ready]);
+    }
+
+    if (failed.length) {
+      setError(`사진 ${failed.length}장을 열 수 없어요. 파일을 확인하거나 다른 사진을 선택해 주세요.`);
+    }
+    setMessage(ready.length ? (replacement ? "사진을 교체했어요." : "사진을 추가했어요.") : "");
+    loadingRef.current = false;
+    setLoading(false);
   }
 
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
-    addFiles(Array.from(event.currentTarget.files ?? []));
+    void importFiles(Array.from(event.currentTarget.files ?? []));
     event.currentTarget.value = "";
   }
 
+  function onReplacementChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    const replacement = photos.find((photo) => photo.id === replaceId.current);
+    replaceId.current = null;
+    event.currentTarget.value = "";
+    if (file && replacement) void importFiles([file], replacement);
+  }
+
+  function movePhoto(id: string, direction: -1 | 1) {
+    if (loadingRef.current) return;
+    const index = photos.findIndex((photo) => photo.id === id);
+    const destination = index + direction;
+    if (index < 0 || destination < 0 || destination >= photos.length) return;
+
+    const reordered = [...photos];
+    [reordered[index], reordered[destination]] = [reordered[destination], reordered[index]];
+    setPhotos(reordered);
+    setError("");
+    setMessage(`${photos[index].name} 사진을 ${destination + 1}번째로 옮겼어요.`);
+  }
+
   function loadSamples() {
-    if (photos.length) return;
+    if (photos.length || loadingRef.current) return;
     setPhotos(
       samples.map((sample) => ({
         ...sample,
@@ -77,20 +133,21 @@ export function App() {
     setMessage("샘플 일러스트를 불러왔어요.");
   }
 
-  function removePhoto(id: string, failed = false) {
+  function removePhoto(id: string) {
+    if (loadingRef.current) return;
     const photo = photos.find((photo) => photo.id === id);
     if (!photo) return;
     release(photo);
     setPhotos((current) => current.filter((photo) => photo.id !== id));
-    setMessage(failed ? "" : "선택한 사진을 제거했어요.");
-    setError(failed ? "사진을 열 수 없어요. 다른 파일을 선택해 주세요." : "");
+    setMessage("선택한 사진을 제거했어요.");
+    setError("");
   }
 
   function onDrop(event: DragEvent<HTMLElement>) {
     event.preventDefault();
     dragDepth.current = 0;
     setDragging(false);
-    addFiles(Array.from(event.dataTransfer.files));
+    void importFiles(Array.from(event.dataTransfer.files));
   }
 
   return (
@@ -122,7 +179,7 @@ export function App() {
           <Button
             className={styles.addFiles}
             onClick={() => fileInput.current?.click()}
-            disabled={photos.length >= MAX_PHOTOS}
+            disabled={loading || photos.length >= MAX_PHOTOS}
           >
             <Icon name="plus" /> 사진 추가
           </Button>
@@ -169,11 +226,11 @@ export function App() {
               onDragEnter={(event) => {
                 event.preventDefault();
                 dragDepth.current += 1;
-                setDragging(true);
+                if (!loadingRef.current) setDragging(true);
               }}
               onDragOver={(event) => {
                 event.preventDefault();
-                event.dataTransfer.dropEffect = "copy";
+                event.dataTransfer.dropEffect = loadingRef.current ? "none" : "copy";
               }}
               onDragLeave={(event) => {
                 event.preventDefault();
@@ -206,7 +263,7 @@ export function App() {
                 variant="primary"
                 className={styles.primaryButton}
                 onClick={() => fileInput.current?.click()}
-                disabled={photos.length >= MAX_PHOTOS}
+                disabled={loading || photos.length >= MAX_PHOTOS}
               >
                 사진 선택하기
               </Button>
@@ -215,18 +272,26 @@ export function App() {
                 20MB
               </p>
             </section>
+            <input
+              ref={replaceInput}
+              className={styles.fileInput}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              aria-label="교체할 사진 파일 선택"
+              onChange={onReplacementChange}
+            />
             <div className={styles.sampleRow}>
               <Button
                 variant="ghost"
                 onClick={loadSamples}
-                disabled={photos.length > 0}
+                disabled={loading || photos.length > 0}
               >
                 샘플 일러스트로 둘러보기
               </Button>
             </div>
             {error && <Notice>{error}</Notice>}
             <p className={styles.liveStatus} role="status">
-              {message && `${message} 현재 ${photos.length}장이 선택되어 있어요.`}
+              {loading ? message : message && `${message} 현재 ${photos.length}장이 선택되어 있어요.`}
             </p>
             {photos.length > 0 && (
               <section
@@ -239,7 +304,9 @@ export function App() {
                   </h2>
                   <Button
                     variant="ghost"
+                    disabled={loading}
                     onClick={() => {
+                      if (loadingRef.current) return;
                       photos.forEach(release);
                       setPhotos([]);
                       setError("");
@@ -256,7 +323,6 @@ export function App() {
                         <img
                           src={photo.url}
                           alt={photo.name}
-                          onError={() => removePhoto(photo.id, true)}
                         />
                         <span className={styles.photoNumber}>
                           {String(index + 1).padStart(2, "0")}
@@ -267,9 +333,22 @@ export function App() {
                         <IconButton
                           onClick={() => removePhoto(photo.id)}
                           label={`${photo.name} 제거`}
+                          disabled={loading}
                         >
                           <Icon name="close" />
                         </IconButton>
+                      </div>
+                      <div className={styles.photoActions}>
+                        <IconButton label={`${photo.name} 앞쪽으로 이동`} disabled={loading || index === 0} onClick={() => movePhoto(photo.id, -1)}>
+                          <Icon name="left" />
+                        </IconButton>
+                        <IconButton label={`${photo.name} 뒤쪽으로 이동`} disabled={loading || index === photos.length - 1} onClick={() => movePhoto(photo.id, 1)}>
+                          <Icon name="right" />
+                        </IconButton>
+                        <Button variant="ghost" aria-label={`${photo.name} 교체`} disabled={loading} onClick={() => {
+                          replaceId.current = photo.id;
+                          replaceInput.current?.click();
+                        }}>교체</Button>
                       </div>
                     </li>
                   ))}
