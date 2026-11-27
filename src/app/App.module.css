@@ -41,6 +41,7 @@
 .sampleRow{display:flex;justify-content:center;margin:var(--sr-space-2) 0 0}
 .liveStatus{font-size:var(--sr-text-caption);color:var(--sr-color-muted);text-align:center;min-height:18px;margin:var(--sr-space-1) 0}
 .selection{margin-top:var(--sr-space-6)}
+.selectionActions{display:flex;justify-content:flex-end;margin-top:var(--sr-space-4)}
 .selectionHeader{display:flex;align-items:center;justify-content:space-between;gap:var(--sr-space-3);margin-bottom:var(--sr-space-2)}
 .selectionHeader h2{margin:0;font-size:var(--sr-text-body);font-weight:var(--sr-weight-medium)}
 .selectionHeader h2 span{font-size:var(--sr-text-caption);color:var(--sr-color-muted);font-weight:var(--sr-weight-regular);margin-left:var(--sr-space-2)}
