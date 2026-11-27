@@ -1,9 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
+import { arrayMove } from "@dnd-kit/sortable";
 import { CollageEditor } from "../features/editor/CollageEditor";
+import { SortablePhotoGrid } from "../features/upload/SortablePhotoGrid";
 import { MAX_PHOTOS, validateFiles } from "../features/upload/validateFiles";
 import type { Layout } from "../rendering/collage";
-import { Button, IconButton } from "../shared/ui/Button";
+import type { MosaicRegion } from "../rendering/mosaic";
+import { Button } from "../shared/ui/Button";
 import { Icon } from "../shared/ui/Icon";
 import { Notice } from "../shared/ui/Notice";
 import { PanelHeader } from "../shared/ui/PanelHeader";
@@ -26,6 +29,7 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"select" | "edit" | "export">("select");
   const [layout, setLayout] = useState<Layout>("grid");
+  const [mosaics, setMosaics] = useState<MosaicRegion[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   const replaceInput = useRef<HTMLInputElement>(null);
   const replaceId = useRef<string | null>(null);
@@ -86,6 +90,7 @@ export function App() {
 
     if (replacement && ready.length) {
       setPhotos((current) => current.map((photo) => photo.id === replacement.id ? ready[0] : photo));
+      setMosaics((current) => current.filter((region) => region.photoId !== replacement.id));
       release(replacement);
     } else if (ready.length) {
       setPhotos((current) => [...current, ...ready]);
@@ -112,15 +117,13 @@ export function App() {
     if (file && replacement) void importFiles([file], replacement);
   }
 
-  function movePhoto(id: string, direction: -1 | 1) {
+  function movePhoto(id: string, targetId: string) {
     if (loadingRef.current) return;
     const index = photos.findIndex((photo) => photo.id === id);
-    const destination = index + direction;
-    if (index < 0 || destination < 0 || destination >= photos.length) return;
+    const destination = photos.findIndex((photo) => photo.id === targetId);
+    if (index < 0 || destination < 0 || index === destination) return;
 
-    const reordered = [...photos];
-    [reordered[index], reordered[destination]] = [reordered[destination], reordered[index]];
-    setPhotos(reordered);
+    setPhotos(arrayMove(photos, index, destination));
     setError("");
     setMessage(`${photos[index].name} 사진을 ${destination + 1}번째로 옮겼어요.`);
   }
@@ -144,6 +147,7 @@ export function App() {
     if (!photo) return;
     release(photo);
     setPhotos((current) => current.filter((photo) => photo.id !== id));
+    setMosaics((current) => current.filter((region) => region.photoId !== id));
     setMessage("선택한 사진을 제거했어요.");
     setError("");
   }
@@ -295,7 +299,7 @@ export function App() {
               </Button>
             </div>
             {error && <Notice>{error}</Notice>}
-            <p className={styles.liveStatus} role="status">
+            <p className={styles.liveStatus} role="status" aria-label="사진 선택 상태">
               {loading ? message : message && `${message} 현재 ${photos.length}장이 선택되어 있어요.`}
             </p>
             {photos.length > 0 && (
@@ -314,6 +318,7 @@ export function App() {
                       if (loadingRef.current) return;
                       photos.forEach(release);
                       setPhotos([]);
+                      setMosaics([]);
                       setError("");
                       setMessage("선택한 사진을 모두 비웠어요.");
                     }}
@@ -321,44 +326,13 @@ export function App() {
                     모두 비우기
                   </Button>
                 </div>
-                <ul className={styles.photoGrid}>
-                  {photos.map((photo, index) => (
-                    <li key={photo.id} className={styles.photoCard}>
-                      <div className={styles.thumbnail}>
-                        <img
-                          src={photo.url}
-                          alt={photo.name}
-                        />
-                        <span className={styles.photoNumber}>
-                          {String(index + 1).padStart(2, "0")}
-                        </span>
-                      </div>
-                      <div className={styles.photoMeta}>
-                        <span>{photo.name}</span>
-                        <IconButton
-                          onClick={() => removePhoto(photo.id)}
-                          label={`${photo.name} 제거`}
-                          disabled={loading}
-                        >
-                          <Icon name="close" />
-                        </IconButton>
-                      </div>
-                      <div className={styles.photoActions}>
-                        <IconButton label={`${photo.name} 앞쪽으로 이동`} disabled={loading || index === 0} onClick={() => movePhoto(photo.id, -1)}>
-                          <Icon name="left" />
-                        </IconButton>
-                        <IconButton label={`${photo.name} 뒤쪽으로 이동`} disabled={loading || index === photos.length - 1} onClick={() => movePhoto(photo.id, 1)}>
-                          <Icon name="right" />
-                        </IconButton>
-                        <Button variant="ghost" aria-label={`${photo.name} 교체`} disabled={loading} onClick={() => {
-                          replaceId.current = photo.id;
-                          replaceInput.current?.click();
-                        }}>교체</Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                <SortablePhotoGrid photos={photos} loading={loading} onReorder={movePhoto} onRemove={removePhoto}
+                  onReplace={(id) => {
+                    replaceId.current = id;
+                    replaceInput.current?.click();
+                  }} />
                 <p className={styles.selectionHint}>
+                  {photos.length > 1 && <>사진 카드를 끌어서 순서를 바꿀 수 있어요. 터치 화면에서는 잠깐 눌렀다가 끌어 주세요. <br /></>}
                   선택한 사진은 새로고침하면 사라져요.
                 </p>
                 <div className={styles.selectionActions}>
@@ -372,6 +346,9 @@ export function App() {
               <CollageEditor
                 photos={photos}
                 layout={photos.length < 3 ? "grid" : layout}
+                mosaics={mosaics}
+                onMosaic={(region) => setMosaics((current) => [...current, region])}
+                onRemoveMosaic={() => setMosaics((current) => current.slice(0, -1))}
                 onLayout={setLayout}
                 onSelect={() => setStep("select")}
                 onExport={(exporting) => setStep(exporting ? "export" : "edit")}

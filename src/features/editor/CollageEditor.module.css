@@ -3,10 +3,22 @@
 .toolbar { margin-bottom: var(--sr-space-3); }
 .toolbar [aria-pressed=true] { background: var(--sr-color-accent-soft); border-color: var(--sr-color-accent); color: var(--sr-color-accent); }
 .preview { background: var(--sr-color-surface); border: 1px solid var(--sr-color-border); border-radius: var(--sr-radius-panel); padding: var(--sr-space-4); }
-.preview canvas, .preview img { width: 100%; max-width: 440px; height: auto; margin: 0 auto; border: 1px solid var(--sr-color-border); }
-.preview canvas:not([hidden]) { display: block; }
+.canvasFrame, .preview img { width: 100%; max-width: 440px; margin: 0 auto; border: 1px solid var(--sr-color-border); }
+.canvasFrame { position: relative; }
+.canvasFrame canvas { display: block; width: 100%; height: auto; }
+.preview img { height: auto; }
+.mosaicCanvas { cursor: crosshair; touch-action: none; }
+.selection { position: absolute; pointer-events: none; border: 2px dashed var(--sr-color-accent); background: var(--sr-color-accent-soft); opacity: .65; }
+.coordinates { margin-top: var(--sr-space-3); font-size: var(--sr-text-label); }
+.coordinates summary { cursor: pointer; width: fit-content; min-height: var(--sr-control-height); }
+.coordinateFields { display: flex; flex-wrap: wrap; gap: var(--sr-space-2); align-items: end; }
+.coordinateFields label { display: grid; gap: var(--sr-space-1); }
+.coordinateFields input, .coordinateFields select { font: inherit; min-height: var(--sr-control-height); border: 1px solid var(--sr-color-border-strong); border-radius: var(--sr-radius-control); background: var(--sr-color-surface); color: var(--sr-color-text); padding: 0 var(--sr-space-2); }
+.coordinateFields input { width: 70px; }
+.coordinateFields select { max-width: 200px; }
 .meta { margin: var(--sr-space-2) 0 var(--sr-space-4); color: var(--sr-color-muted); font-size: var(--sr-text-caption); }
 .actions { align-items: center; justify-content: space-between; }
 .download { display: inline-flex; align-items: center; min-height: var(--sr-control-height); padding: var(--sr-space-1) var(--sr-space-3); border: 1px solid var(--sr-color-accent); border-radius: var(--sr-radius-control); background: var(--sr-color-accent); color: var(--sr-color-on-accent); font-size: var(--sr-text-label); font-weight: var(--sr-weight-medium); text-decoration: none; }
 .download:hover { background: var(--sr-color-accent-hover); }
 @media (pointer: coarse), (max-width: 680px) { .download { min-height: var(--sr-touch-target); } }
+@media (pointer: coarse), (max-width: 680px) { .coordinateFields input, .coordinateFields select, .coordinates summary { min-height: var(--sr-touch-target); } }

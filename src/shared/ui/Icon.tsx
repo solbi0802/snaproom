@@ -5,8 +5,6 @@ const paths = {
   image: <><rect x="2" y="2.5" width="12" height="11" rx="1.5" /><circle cx="6" cy="6" r="1" /><path d="m2.5 12 3.5-3.5 2.5 2.5 2-2 3 3" /></>,
   plus: <path d="M8 3v10M3 8h10" />,
   close: <path d="m4 4 8 8M4 12l8-8" />,
-  left: <path d="m9 4-4 4 4 4M5 8h8" />,
-  right: <path d="m7 4 4 4-4 4M11 8H3" />,
 }
 
 export function Icon({ name, size = 'default', className }: { name: keyof typeof paths; size?: 'default' | 'large'; className?: string }) {
