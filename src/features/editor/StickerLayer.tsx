@@ -11,7 +11,7 @@ type Props = {
   active: boolean
   selectedId: string | null
   onSelect: (id: string) => void
-  onUpdate: (id: string, update: (sticker: Sticker) => Sticker) => void
+  onUpdate: (id: string, update: (sticker: Sticker) => Sticker, group?: symbol) => void
 }
 
 const arrowOffsets: Readonly<Record<string, readonly [number, number] | undefined>> = {
@@ -28,7 +28,7 @@ const resizeCorners = [
 export function StickerLayer({ stickers, active, selectedId, onSelect, onUpdate }: Props) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const selected = active ? stickers.find(sticker => sticker.id === selectedId) : undefined
-  const drag = useRef<{ pointerId: number; sticker: Sticker; corner?: StickerCorner; clientX: number; clientY: number; scale: number } | null>(null)
+  const drag = useRef<{ pointerId: number; sticker: Sticker; corner?: StickerCorner; group: symbol; clientX: number; clientY: number; scale: number } | null>(null)
 
   useEffect(() => {
     const context = canvas.current?.getContext('2d')
@@ -42,7 +42,7 @@ export function StickerLayer({ stickers, active, selectedId, onSelect, onUpdate 
     const width = canvas.current?.clientWidth
     if (!width) return
     onSelect(sticker.id)
-    drag.current = { pointerId: event.pointerId, sticker, corner, clientX: event.clientX, clientY: event.clientY, scale: COLLAGE_SIZE / width }
+    drag.current = { pointerId: event.pointerId, sticker, corner, group: Symbol(), clientX: event.clientX, clientY: event.clientY, scale: COLLAGE_SIZE / width }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
@@ -55,9 +55,9 @@ export function StickerLayer({ stickers, active, selectedId, onSelect, onUpdate 
     const corner = current.corner
     if (corner) {
       const delta = Math.abs(dx) >= Math.abs(dy) ? dx * corner[0] : dy * corner[1]
-      onUpdate(original.id, () => resizeSticker(original, original.size + delta, corner))
+      onUpdate(original.id, () => resizeSticker(original, original.size + delta, corner), current.group)
     } else {
-      onUpdate(original.id, sticker => ({ ...sticker, x: original.x + dx, y: original.y + dy }))
+      onUpdate(original.id, sticker => ({ ...sticker, x: original.x + dx, y: original.y + dy }), current.group)
     }
   }
 

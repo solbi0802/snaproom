@@ -63,3 +63,16 @@
 @media (pointer: coarse) {
   .stickerLayer > .stickerResizeHandle { width: var(--sr-touch-target); height: var(--sr-touch-target); }
 }
+
+.appearance { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sr-space-2) var(--sr-space-4); margin-bottom: var(--sr-space-3); padding: var(--sr-space-2); border: 1px solid var(--sr-color-border); border-radius: var(--sr-radius-panel); background: var(--sr-color-surface); }
+.colorFields, .colorFields label, .gapField { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sr-space-1); }
+.appearance label { font-size: var(--sr-text-caption); }
+.colorFields input { min-height: var(--sr-control-height); background: var(--sr-color-surface); color: var(--sr-color-text); border: 1px solid var(--sr-color-border-strong); border-radius: var(--sr-radius-control); }
+.colorFields input[type=color] { width: var(--sr-control-height); padding: var(--sr-space-1); cursor: pointer; }
+.colorFields input[type=number] { width: 3.5rem; padding: 0 var(--sr-space-1); font-variant-numeric: tabular-nums; }
+.gapField input { width: min(8rem, 40vw); margin: 0; min-height: var(--sr-control-height); accent-color: var(--sr-color-accent); }
+.gapField span { min-width: 4ch; text-align: end; font-variant-numeric: tabular-nums; }
+@media (pointer: coarse) {
+  .colorFields input, .gapField input { min-height: var(--sr-touch-target); }
+  .colorFields input[type=color] { width: var(--sr-touch-target); }
+}
