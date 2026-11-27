@@ -18,6 +18,17 @@ export function placeSticker(sticker: Sticker): Sticker {
   return { ...sticker, size, x: Math.max(min, Math.min(max, sticker.x)), y: Math.max(min, Math.min(max, sticker.y)) }
 }
 
+export type StickerCorner = readonly [horizontal: -1 | 1, vertical: -1 | 1]
+
+export function resizeSticker(sticker: Sticker, requestedSize: number, [horizontal, vertical]: StickerCorner): Sticker {
+  const anchorX = sticker.x - horizontal * sticker.size / 2
+  const anchorY = sticker.y - vertical * sticker.size / 2
+  const width = horizontal === 1 ? COLLAGE_SIZE - anchorX : anchorX
+  const height = vertical === 1 ? COLLAGE_SIZE - anchorY : anchorY
+  const size = Math.max(stickerSize.min, Math.min(stickerSize.max, width, height, requestedSize))
+  return { ...sticker, size, x: anchorX + horizontal * size / 2, y: anchorY + vertical * size / 2 }
+}
+
 export function drawStickers(context: CanvasRenderingContext2D, stickers: readonly Sticker[]) {
   for (const { kind, x, y, size } of stickers) {
     const art = stickerArt[kind]

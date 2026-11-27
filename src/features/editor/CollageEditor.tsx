@@ -228,17 +228,9 @@ export function CollageEditor({ photos, layout, mosaics, stickers, setStickers, 
               </Button>
             ))}
           </div>
-          <p id="sticker-instructions" className={styles.meta}>스티커를 끌어서 옮기세요. 키보드에서는 스티커에 초점을 두고 방향키로 옮길 수 있어요.</p>
+          <p id="sticker-instructions" className={styles.meta}>스티커를 끌어서 옮기고, 네 모서리 중 하나를 끌어서 크기를 바꿀 수 있어요.</p>
           {selectedSticker && (
-            <div className={styles.stickerSettings}>
-              <label>스티커 크기 <input type="range" min={stickerSize.min} max={stickerSize.max}
-                value={selectedSticker.size} disabled={saving}
-                onChange={event => {
-                  const size = event.currentTarget.valueAsNumber
-                  updateSticker(selectedSticker.id, sticker => ({ ...sticker, size }))
-                }} /></label>
-              <Button variant="ghost" disabled={saving} onClick={() => removeSticker(selectedSticker.id)}>선택한 스티커 삭제</Button>
-            </div>
+            <Button variant="ghost" disabled={saving} onClick={() => removeSticker(selectedSticker.id)}>선택한 스티커 삭제</Button>
           )}
         </div>
       )}

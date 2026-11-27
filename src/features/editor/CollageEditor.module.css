@@ -24,11 +24,42 @@
 @media (pointer: coarse), (max-width: 680px) { .coordinateFields input, .coordinateFields select, .coordinates summary { min-height: var(--sr-touch-target); } }
 
 .stickerControls { margin-bottom: var(--sr-space-3); }
-.stickerSettings, .stickerSettings label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sr-space-2); }
-.stickerSettings label { font-size: var(--sr-text-label); }
-.stickerSettings input { accent-color: var(--sr-color-accent); }
 .stickerLayer { position: absolute; inset: 0; pointer-events: none; }
 .stickerLayer > .stickerHitArea { position: absolute; display: block; min-height: 0; padding: 0; touch-action: none; pointer-events: auto; cursor: grab; background: transparent; }
 .stickerLayer > .stickerHitArea:hover:not(:disabled) { background: transparent; border-color: var(--sr-color-border-strong); }
 .stickerLayer > .stickerHitArea[aria-pressed=true] { border-color: var(--sr-color-accent); }
 .stickerLayer > .stickerHitArea:active { cursor: grabbing; }
+.stickerLayer > .stickerResizeHandle {
+  position: absolute;
+  display: block;
+  width: var(--sr-control-height);
+  height: var(--sr-control-height);
+  min-height: 0;
+  padding: 0;
+  --grip-x: 15%;
+  --grip-y: 15%;
+  z-index: 1;
+  transform: translate(calc(-1 * var(--grip-x)), calc(-1 * var(--grip-y)));
+  touch-action: none;
+  pointer-events: auto;
+  cursor: nwse-resize;
+  background: transparent;
+}
+.stickerLayer > .stickerResizeHandle:hover:not(:disabled) { background: transparent; }
+.stickerResizeHandle[data-corner^=top] { --grip-y: 85%; }
+.stickerResizeHandle[data-corner$=left] { --grip-x: 85%; }
+.stickerLayer > .stickerResizeHandle:is([data-corner=top-right], [data-corner=bottom-left]) { cursor: nesw-resize; }
+.stickerResizeGrip {
+  position: absolute;
+  top: var(--grip-y);
+  left: var(--grip-x);
+  width: var(--sr-space-3);
+  height: var(--sr-space-3);
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--sr-color-on-accent);
+  border-radius: var(--sr-radius-small);
+  background: var(--sr-color-accent);
+}
+@media (pointer: coarse) {
+  .stickerLayer > .stickerResizeHandle { width: var(--sr-touch-target); height: var(--sr-touch-target); }
+}
