@@ -10,15 +10,15 @@ export type CollageDocument = CollageAppearance & {
 }
 
 export type CollageEdit = (document: CollageDocument) => CollageDocument
-type History = { document: CollageDocument; past: readonly CollageDocument[]; group?: symbol }
+export type CollageHistory = { document: CollageDocument; past: readonly CollageDocument[]; group?: symbol }
 const historyLimit = 50
 
-export const initialHistory: History = {
+export const initialHistory: CollageHistory = {
   document: { ...COLLAGE_DEFAULTS, layout: 'grid', mosaics: [], stickers: [] },
   past: [],
 }
 
-export function recordEdit(history: History, edit: CollageEdit, group?: symbol): History {
+export function recordEdit(history: CollageHistory, edit: CollageEdit, group?: symbol): CollageHistory {
   const document = edit(history.document)
   if (document === history.document) return history
   const past = group && group === history.group
@@ -27,12 +27,12 @@ export function recordEdit(history: History, edit: CollageEdit, group?: symbol):
   return { document, past, group }
 }
 
-export function undoEdit(history: History): History {
+export function undoEdit(history: CollageHistory): CollageHistory {
   const previous = history.past.at(-1)
   return previous ? { document: previous, past: history.past.slice(0, -1) } : history
 }
 
-export function forgetPhoto(history: History, id: string): History {
+export function forgetPhoto(history: CollageHistory, id: string): CollageHistory {
   const { document, past } = history
   const belongsToPhoto = (region: MosaicRegion) => region.photoId === id
   if (!document.mosaics.some(belongsToPhoto) && !past.some(snapshot => snapshot.mosaics.some(belongsToPhoto))) return history

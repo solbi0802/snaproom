@@ -1,4 +1,5 @@
-import { COLLAGE_SIZE } from './collage'
+import { COLLAGE_FRAME, COLLAGE_SIZE } from './collage'
+import type { ImageSize } from './collage'
 
 export const stickerArt = {
   star: { label: '별', symbol: '★', color: '#ffd05b', path: 'M50 8 62 36 92 39 69 60 76 91 50 75 24 91 31 60 8 39 38 36Z' },
@@ -11,21 +12,30 @@ export type StickerKind = keyof typeof stickerArt
 export type Sticker = { id: string; kind: StickerKind; x: number; y: number; size: number }
 export const stickerSize = { min: 64, initial: 160, max: 400 } as const
 
-export function placeSticker(sticker: Sticker): Sticker {
-  const size = Math.max(stickerSize.min, Math.min(stickerSize.max, sticker.size))
+export function stickerScale({ width, height }: ImageSize) {
+  return Math.min(width, height) / COLLAGE_SIZE
+}
+
+export function placeSticker(sticker: Sticker, frame = COLLAGE_FRAME): Sticker {
+  const scale = stickerScale(frame)
+  const size = Math.max(stickerSize.min * scale, Math.min(stickerSize.max * scale, sticker.size))
   const min = size / 2
-  const max = COLLAGE_SIZE - min
-  return { ...sticker, size, x: Math.max(min, Math.min(max, sticker.x)), y: Math.max(min, Math.min(max, sticker.y)) }
+  return {
+    ...sticker, size,
+    x: Math.max(min, Math.min(frame.width - min, sticker.x)),
+    y: Math.max(min, Math.min(frame.height - min, sticker.y)),
+  }
 }
 
 export type StickerCorner = readonly [horizontal: -1 | 1, vertical: -1 | 1]
 
-export function resizeSticker(sticker: Sticker, requestedSize: number, [horizontal, vertical]: StickerCorner): Sticker {
+export function resizeSticker(sticker: Sticker, requestedSize: number, [horizontal, vertical]: StickerCorner, frame = COLLAGE_FRAME): Sticker {
   const anchorX = sticker.x - horizontal * sticker.size / 2
   const anchorY = sticker.y - vertical * sticker.size / 2
-  const width = horizontal === 1 ? COLLAGE_SIZE - anchorX : anchorX
-  const height = vertical === 1 ? COLLAGE_SIZE - anchorY : anchorY
-  const size = Math.max(stickerSize.min, Math.min(stickerSize.max, width, height, requestedSize))
+  const width = horizontal === 1 ? frame.width - anchorX : anchorX
+  const height = vertical === 1 ? frame.height - anchorY : anchorY
+  const scale = stickerScale(frame)
+  const size = Math.max(stickerSize.min * scale, Math.min(stickerSize.max * scale, width, height, requestedSize))
   return { ...sticker, size, x: anchorX + horizontal * size / 2, y: anchorY + vertical * size / 2 }
 }
 

@@ -10,7 +10,7 @@ test('photo order and layout survive the PNG preview and the download is a 1000p
   await page.getByRole('button', { name: '첫 사진 강조' }).click()
   const canvas = page.getByRole('img', { name: '사진 배치 미리보기' })
   const isDeskInFeaturedCell = () => canvas.evaluate((element: HTMLCanvasElement) => {
-    const pixel = element.getContext('2d')?.getImageData(30, 500, 1, 1).data
+    const pixel = element.getContext('2d')?.getImageData(30, 100, 1, 1).data
     return pixel && [...pixel].join(',')
   })
   await expect.poll(isDeskInFeaturedCell).toBe('226,226,214,255')

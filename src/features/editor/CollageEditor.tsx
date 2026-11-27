@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent, PointerEvent } from 'react'
-import { COLLAGE_SIZE, collageCells, coverCrop, drawCollage } from '../../rendering/collage'
+import { COLLAGE_FRAME, COLLAGE_SIZE, collageCells, coverCrop, drawCollage, drawIndividualPhoto, photoPreviewSize } from '../../rendering/collage'
 import type { CollagePhoto, Rect } from '../../rendering/collage'
 import { intersect, rectangleBetween, toPhotoArea } from '../../rendering/mosaic'
 import type { Point } from '../../rendering/mosaic'
-import { drawStickers, placeSticker, stickerArt, stickerSize } from '../../rendering/stickers'
+import { drawStickers, placeSticker, stickerArt, stickerScale, stickerSize } from '../../rendering/stickers'
 import type { Sticker, StickerKind } from '../../rendering/stickers'
 import { Button } from '../../shared/ui/Button'
 import { StickerLayer } from './StickerLayer'
@@ -16,6 +16,7 @@ import styles from './CollageEditor.module.css'
 type Props = {
   photos: readonly { id: string; url: string; name: string; image?: HTMLImageElement }[]
   document: CollageDocument
+  individual?: boolean
   canUndo: boolean
   onEdit: (edit: CollageEdit, group?: symbol) => void
   onUndo: () => void
@@ -23,7 +24,7 @@ type Props = {
   onExport: (exporting: boolean) => void
 }
 
-export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUndo, onSelect, onExport }: Props) {
+export function CollageEditor({ photos, document: collage, individual = false, canUndo, onEdit, onUndo, onSelect, onExport }: Props) {
   const { mosaics, stickers, background, gap } = collage
   const layout = photos.length < 3 ? 'grid' : collage.layout
   const heading = useRef<HTMLHeadingElement>(null)
@@ -44,7 +45,14 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
   const [selection, setSelection] = useState<Rect | null>(null)
   const [mosaicMessage, setMosaicMessage] = useState('')
   const drag = useRef<{ pointerId: number; index: number; start: Point } | null>(null)
-  const cells = collageCells(photos.length, layout, gap)
+  const nativeWidth = individual ? images[0]?.image.naturalWidth ?? COLLAGE_SIZE : COLLAGE_SIZE
+  const nativeHeight = individual ? images[0]?.image.naturalHeight ?? COLLAGE_SIZE : COLLAGE_SIZE
+  const frame = useMemo(() => individual ? photoPreviewSize({ width: nativeWidth, height: nativeHeight }) : COLLAGE_FRAME,
+    [individual, nativeWidth, nativeHeight])
+  const cells = individual ? [{ x: 0, y: 0, ...frame }] : collageCells(photos.length, layout, gap)
+  const imageStyle = individual ? { maxWidth: Math.min(440, 520 * nativeWidth / nativeHeight) } : undefined
+  const name = photos[0]?.name.replace(/\.(?:jpe?g|png|webp|svg)$/i, '') || 'snaproom'
+  const downloadName = individual ? name + '-edited.png' : 'snaproom-collage.png'
   const showingPreview = Boolean(preview)
 
   useEffect(() => {
@@ -76,7 +84,8 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
   useEffect(() => {
     if (!canvasRef.current || !images.length) return
     try {
-      drawCollage(canvasRef.current, images, layout, mosaics, { background, gap })
+      if (individual) drawIndividualPhoto(canvasRef.current, images[0], frame, mosaics)
+      else drawCollage(canvasRef.current, images, layout, mosaics, { background, gap })
     } catch {
       // Report the failure through the same asynchronous path as image decoding.
       let active = true
@@ -85,28 +94,29 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
       })
       return () => { active = false }
     }
-  }, [images, layout, mosaics, background, gap])
+  }, [images, layout, mosaics, background, gap, individual, frame])
 
   function applyMosaic(index: number, selection: Rect) {
     const photo = images[index]
     const cell = cells[index]
     if (!photo || !cell) return
     const clipped = intersect(selection, cell)
-    if (!clipped || clipped.width < 8 || clipped.height < 8) {
+    if (!clipped || clipped.width < Math.min(8, cell.width / 10) || clipped.height < Math.min(8, cell.height / 10)) {
       setMosaicMessage('모자이크 영역을 조금 더 크게 선택해 주세요.')
       return
     }
     const { naturalWidth: width, naturalHeight: height } = photo.image
-    const area = toPhotoArea(clipped, cell, coverCrop(width, height, cell), width, height)
+    const crop = individual ? { x: 0, y: 0, width, height } : coverCrop(width, height, cell)
+    const area = toPhotoArea(clipped, cell, crop, width, height)
     onEdit(document => ({ ...document, mosaics: [...document.mosaics, { photoId: photo.id, area }] }))
-    setMosaicMessage(`${index + 1}번 사진에 모자이크를 적용했어요.`)
+    setMosaicMessage(individual ? '현재 사진에 모자이크를 적용했어요.' : `${index + 1}번 사진에 모자이크를 적용했어요.`)
   }
 
   function pointerPoint(event: PointerEvent<HTMLCanvasElement>): Point {
     const bounds = event.currentTarget.getBoundingClientRect()
     return {
-      x: (event.clientX - bounds.left) * COLLAGE_SIZE / bounds.width,
-      y: (event.clientY - bounds.top) * COLLAGE_SIZE / bounds.height,
+      x: (event.clientX - bounds.left) * frame.width / bounds.width,
+      y: (event.clientY - bounds.top) * frame.height / bounds.height,
     }
   }
 
@@ -142,7 +152,7 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
   function applyForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const fields = new FormData(event.currentTarget)
-    const index = Number(fields.get('photo'))
+    const index = individual ? 0 : Number(fields.get('photo'))
     const cell = cells[index]
     if (!cell) return
     const fraction = (name: string) => Number(fields.get(name)) / 100
@@ -156,11 +166,11 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
 
   function addSticker(kind: StickerKind, focusNewSticker: boolean) {
     const id = crypto.randomUUID()
-    const center = COLLAGE_SIZE / 2 + (stickers.length % 6) * 24
-    onEdit(document => ({
-      ...document,
-      stickers: [...document.stickers, { id, kind, x: center, y: center, size: stickerSize.initial }],
-    }))
+    const scale = stickerScale(frame)
+    const offset = (stickers.length % 6) * 24 * scale
+    const sticker = placeSticker({ id, kind, x: frame.width / 2 + offset, y: frame.height / 2 + offset,
+      size: stickerSize.initial * scale }, frame)
+    onEdit(document => ({ ...document, stickers: [...document.stickers, sticker] }))
     setSelectedStickerId(id)
     setFocusStickerId(focusNewSticker ? id : null)
   }
@@ -169,7 +179,7 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
     onEdit(document => {
       const sticker = document.stickers.find(item => item.id === id)
       if (!sticker) return document
-      const next = placeSticker(update(sticker))
+      const next = placeSticker(update(sticker), frame)
       if (next.x === sticker.x && next.y === sticker.y && next.size === sticker.size) return document
       return { ...document, stickers: document.stickers.map(item => item.id === id ? next : item) }
     })
@@ -213,9 +223,11 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
 
     try {
       const output = document.createElement('canvas')
-      drawCollage(output, images, layout, mosaics, { background, gap })
+      if (individual) drawIndividualPhoto(output, images[0], { width: nativeWidth, height: nativeHeight }, mosaics)
+      else drawCollage(output, images, layout, mosaics, { background, gap })
       const context = output.getContext('2d')
       if (!context) { fail(); return }
+      context.scale(nativeWidth / frame.width, nativeHeight / frame.height)
       drawStickers(context, stickers)
       output.toBlob(blob => {
         if (!mounted.current) return
@@ -233,8 +245,8 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
 
   return (
     <section className={styles.editor} aria-labelledby="collage-heading" onKeyDown={onEditorKeyDown}>
-      <h1 id="collage-heading" ref={heading} tabIndex={-1}>{preview ? '저장 미리보기' : '사진 배치'}</h1>
-      {!preview && (
+      <h1 id="collage-heading" ref={heading} tabIndex={-1}>{preview ? '저장 미리보기' : individual ? '개별 사진 편집' : '사진 배치'}</h1>
+      {!preview && !individual && (
         <div className={styles.toolbar} role="group" aria-label="사진 레이아웃">
           <Button aria-pressed={layout === 'grid'} onClick={() => onEdit(document => document.layout === 'grid' ? document : { ...document, layout: 'grid' })} disabled={saving}>기본 배치</Button>
           <Button aria-pressed={layout === 'featured'} onClick={() => onEdit(document => document.layout === 'featured' ? document : { ...document, layout: 'featured' })} disabled={saving || photos.length < 3}>첫 사진 강조</Button>
@@ -253,7 +265,7 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
           }}>마지막 모자이크 지우기</Button>
         </div>
       )}
-      {!preview && <CollageAppearanceControls background={background} gap={gap}
+      {!preview && !individual && <CollageAppearanceControls background={background} gap={gap}
         disabled={!images.length || saving} onEdit={onEdit} />}
       {!preview && mosaicMode && <p className={styles.meta}>사진 안에서 가릴 영역을 드래그하세요.</p>}
       {!preview && stickerMode && (
@@ -273,25 +285,25 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
         </div>
       )}
       <div className={styles.preview}>
-        <div className={styles.canvasFrame} hidden={Boolean(preview) || !images.length}>
-          <canvas ref={canvasRef} className={mosaicMode ? styles.mosaicCanvas : undefined} width={COLLAGE_SIZE} height={COLLAGE_SIZE}
-            role="img" aria-label="사진 배치 미리보기" onPointerDown={startMosaic} onPointerMove={moveMosaic}
+        <div className={styles.canvasFrame} style={imageStyle} hidden={Boolean(preview) || !images.length}>
+          <canvas ref={canvasRef} className={mosaicMode ? styles.mosaicCanvas : undefined} width={frame.width} height={frame.height}
+            role="img" aria-label={individual ? '개별 사진 미리보기' : '사진 배치 미리보기'} onPointerDown={startMosaic} onPointerMove={moveMosaic}
             onPointerUp={finishMosaic} onPointerCancel={cancelMosaic} onLostPointerCapture={cancelMosaic} />
-          <StickerLayer stickers={stickers} active={stickerMode && !preview && !saving}
+          <StickerLayer stickers={stickers} frame={frame} active={stickerMode && !preview && !saving}
             selectedId={selectedStickerId} focusStickerId={focusStickerId} onSelect={setSelectedStickerId} onUpdate={updateSticker} />
           {selection && <div className={styles.selection} aria-hidden="true" style={{
-            left: `${selection.x / COLLAGE_SIZE * 100}%`, top: `${selection.y / COLLAGE_SIZE * 100}%`,
-            width: `${selection.width / COLLAGE_SIZE * 100}%`, height: `${selection.height / COLLAGE_SIZE * 100}%`,
+            left: `${selection.x / frame.width * 100}%`, top: `${selection.y / frame.height * 100}%`,
+            width: `${selection.width / frame.width * 100}%`, height: `${selection.height / frame.height * 100}%`,
           }} />}
         </div>
-        {preview && <img src={preview} width={COLLAGE_SIZE} height={COLLAGE_SIZE} alt="저장할 PNG 이미지" />}
+        {preview && <img src={preview} width={nativeWidth} height={nativeHeight} style={imageStyle} alt="저장할 PNG 이미지" />}
         {!images.length && !error && <p role="status">미리보기를 만드는 중이에요.</p>}
       </div>
       {!preview && mosaicMode && (
         <details className={styles.coordinates}>
           <summary>숫자로 영역 지정</summary>
           <form onSubmit={applyForm} className={styles.coordinateFields}>
-            <label>사진<select name="photo">{photos.map((photo, index) => <option key={photo.id} value={index}>{index + 1}. {photo.name}</option>)}</select></label>
+            {!individual && <label>사진<select name="photo">{photos.map((photo, index) => <option key={photo.id} value={index}>{index + 1}. {photo.name}</option>)}</select></label>}
             <label>왼쪽 (%)<input name="left" type="number" min="0" max="99" defaultValue="25" required /></label>
             <label>위쪽 (%)<input name="top" type="number" min="0" max="99" defaultValue="25" required /></label>
             <label>너비 (%)<input name="width" type="number" min="1" max="100" defaultValue="50" required /></label>
@@ -301,12 +313,12 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
         </details>
       )}
       {mosaicMessage && <p className={styles.meta} role="status">{mosaicMessage}</p>}
-      <p className={styles.meta}>PNG · {COLLAGE_SIZE} × {COLLAGE_SIZE}</p>
+      <p className={styles.meta}>PNG · {nativeWidth} × {nativeHeight}</p>
       {error && <Notice>{error}</Notice>}
       <div className={styles.actions}>
         {preview ? <>
-          <Button onClick={backToLayout}>배치로 돌아가기</Button>
-          <a className={styles.download} href={preview} download="snaproom-collage.png">PNG 다운로드</a>
+          <Button onClick={backToLayout}>{individual ? '개별 편집으로 돌아가기' : '배치로 돌아가기'}</Button>
+          <a className={styles.download} href={preview} download={downloadName}>PNG 다운로드</a>
         </> : <>
           <Button onClick={onSelect} disabled={saving}>사진 선택으로 돌아가기</Button>
           <Button variant="primary" onClick={showExport} disabled={!images.length || saving}>{saving ? 'PNG 만드는 중' : '저장 미리보기'}</Button>

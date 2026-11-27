@@ -60,3 +60,10 @@
 @media(max-width:1120px){.workbench{grid-template-columns:184px minmax(0,1fr)}.inspector{display:none}}
 @media(max-width:680px){.header{padding:0 var(--sr-space-3);gap:var(--sr-space-3)}.documentName{padding-left:var(--sr-space-3);gap:var(--sr-space-2)}.documentName>span{display:none}.privacy{font-size:var(--sr-text-caption);gap:var(--sr-space-1)}.workbench{grid-template-columns:minmax(0,1fr)}.sidebar{display:none}.workspaceBar{padding:0 var(--sr-space-4)}.workspaceLabel{display:none}.workspaceContent{padding:var(--sr-space-8) var(--sr-space-5)}.dropzone{min-height:250px}.dropzone h2{font-size:var(--sr-text-section)}.dropzone>.fileHint{max-width:250px}}
 @media(prefers-reduced-motion:reduce){.dropzone{transition:none}}
+
+.selectionActions { flex-wrap: wrap; gap: var(--sr-space-2); }
+.photoNavigation { display: flex; flex-wrap: wrap; gap: var(--sr-space-2); margin-bottom: var(--sr-space-4); }
+.photoNavigation > .photoTab { min-width: 0; max-width: min(100%, 11rem); justify-content: flex-start; padding: var(--sr-space-1) var(--sr-space-2); }
+.photoTab img { width: 28px; height: 28px; flex: none; object-fit: cover; border-radius: var(--sr-radius-small); }
+.photoTab span { overflow: hidden; text-overflow: ellipsis; }
+.photoNavigation > .photoTab[aria-pressed=true] { background: var(--sr-color-accent-soft); border-color: var(--sr-color-accent); color: var(--sr-color-accent); }

@@ -2,6 +2,8 @@ import { intersect, toCanvasRect } from './mosaic'
 import type { MosaicRegion } from './mosaic'
 
 export const COLLAGE_SIZE = 1000
+export type ImageSize = { width: number; height: number }
+export const COLLAGE_FRAME: ImageSize = { width: COLLAGE_SIZE, height: COLLAGE_SIZE }
 export const MAX_COLLAGE_GAP = 64
 export type CollageAppearance = { background: string; gap: number }
 export const COLLAGE_DEFAULTS: CollageAppearance = { background: '#ffffff', gap: 12 }
@@ -51,18 +53,47 @@ export function drawCollage(
   mosaics: readonly MosaicRegion[],
   { background, gap }: CollageAppearance = COLLAGE_DEFAULTS,
 ) {
+  drawPhotos(canvas, photos, collageCells(photos.length, layout, gap), COLLAGE_FRAME, mosaics, 24, background)
+}
+
+export function photoPreviewSize({ width, height }: ImageSize): ImageSize {
+  const scale = COLLAGE_SIZE / Math.max(width, height)
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) }
+}
+
+export function drawIndividualPhoto(canvas: HTMLCanvasElement, photo: CollagePhoto, size: ImageSize, mosaics: readonly MosaicRegion[]) {
+  drawPhotos(canvas, [photo], [{ x: 0, y: 0, ...size }], size, mosaics, 24 * Math.max(size.width, size.height) / COLLAGE_SIZE)
+}
+
+function drawPhotos(
+  canvas: HTMLCanvasElement,
+  photos: readonly CollagePhoto[],
+  cells: readonly Rect[],
+  size: ImageSize,
+  mosaics: readonly MosaicRegion[],
+  pixelSize: number,
+  background?: string,
+) {
   const context = canvas.getContext('2d')
   if (!context) throw new Error('Canvas is unavailable')
 
-  canvas.width = COLLAGE_SIZE
-  canvas.height = COLLAGE_SIZE
-  context.fillStyle = background
-  context.fillRect(0, 0, COLLAGE_SIZE, COLLAGE_SIZE)
+  canvas.width = size.width
+  canvas.height = size.height
+  if (background) {
+    context.fillStyle = background
+    context.fillRect(0, 0, size.width, size.height)
+  }
   const pixelCanvas = mosaics.length ? document.createElement('canvas') : null
-  collageCells(photos.length, layout, gap).forEach((cell, index) => {
+  cells.forEach((cell, index) => {
     const { id, image } = photos[index]
-    const crop = coverCrop(image.naturalWidth, image.naturalHeight, cell)
-    context.drawImage(image, crop.x, crop.y, crop.width, crop.height, cell.x, cell.y, cell.width, cell.height)
+    const crop = background
+      ? coverCrop(image.naturalWidth, image.naturalHeight, cell)
+      : { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight }
+    if (background) {
+      context.drawImage(image, crop.x, crop.y, crop.width, crop.height, cell.x, cell.y, cell.width, cell.height)
+    } else {
+      context.drawImage(image, cell.x, cell.y, cell.width, cell.height)
+    }
     if (!pixelCanvas) return
 
     for (const { photoId, area } of mosaics) {
@@ -76,8 +107,8 @@ export function drawCollage(
       if (!visible) continue
 
       const target = toCanvasRect(visible, crop, cell)
-      pixelCanvas.width = Math.max(1, Math.floor(target.width / 24))
-      pixelCanvas.height = Math.max(1, Math.floor(target.height / 24))
+      pixelCanvas.width = Math.max(1, Math.floor(target.width / pixelSize))
+      pixelCanvas.height = Math.max(1, Math.floor(target.height / pixelSize))
       const pixelContext = pixelCanvas.getContext('2d')
       if (!pixelContext) throw new Error('Mosaic canvas is unavailable')
       pixelContext.imageSmoothingQuality = 'high'
@@ -85,6 +116,8 @@ export function drawCollage(
       pixelContext.drawImage(canvas, target.x, target.y, target.width, target.height, 0, 0, pixelCanvas.width, pixelCanvas.height)
       context.save()
       context.imageSmoothingEnabled = false
+      // Replace translucent source pixels instead of compositing them over themselves.
+      if (!background) context.clearRect(target.x, target.y, target.width, target.height)
       context.drawImage(pixelCanvas, target.x, target.y, target.width, target.height)
       context.restore()
     }

@@ -1,11 +1,11 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
 import { CollageEditor } from "../features/editor/CollageEditor";
 import { SortablePhotoGrid } from "../features/upload/SortablePhotoGrid";
 import { MAX_PHOTOS, validateFiles } from "../features/upload/validateFiles";
 import { forgetPhoto, initialHistory, recordEdit, undoEdit } from "../features/editor/collageHistory";
-import type { CollageEdit } from "../features/editor/collageHistory";
+import type { CollageEdit, CollageHistory } from "../features/editor/collageHistory";
 import { Button } from "../shared/ui/Button";
 import { Icon } from "../shared/ui/Icon";
 import { Notice } from "../shared/ui/Notice";
@@ -29,9 +29,15 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"select" | "edit" | "export">("select");
   const [history, setHistory] = useState(initialHistory);
+  const [photoHistories, setPhotoHistories] = useState<Partial<Record<string, CollageHistory>>>({});
+  const [activePhotoId, setActivePhotoId] = useState<string | null>(null);
+  const activePhoto = photos.find((photo) => photo.id === activePhotoId);
+  const editorPhotos = useMemo(() => activePhoto ? [activePhoto] : photos, [activePhoto, photos]);
+  const editorHistory = activePhoto ? photoHistories[activePhoto.id] ?? initialHistory : history;
   const fileInput = useRef<HTMLInputElement>(null);
   const replaceInput = useRef<HTMLInputElement>(null);
   const startEditing = useRef<HTMLButtonElement>(null);
+  const startIndividual = useRef<HTMLButtonElement>(null);
   const choosePhotos = useRef<HTMLButtonElement>(null);
   const selectedHeading = useRef<HTMLHeadingElement>(null);
   const restoreSelectionFocus = useRef(false);
@@ -41,7 +47,7 @@ export function App() {
   const activeUrls = useRef(new Set<string>());
   const dragDepth = useRef(0);
   const hintId = useId();
-  const stepLabel = { select: "사진 선택", edit: "사진 배치", export: "저장" }[step];
+  const stepLabel = { select: "사진 선택", edit: activePhoto ? "개별 편집" : "사진 배치", export: "저장" }[step];
 
   useEffect(() => {
     const urls = activeUrls.current;
@@ -53,10 +59,10 @@ export function App() {
 
   useEffect(() => {
     if (step === "select" && previousStep.current !== "select") {
-      startEditing.current?.focus();
+      (activePhoto ? startIndividual.current : startEditing.current)?.focus();
     }
     previousStep.current = step;
-  }, [step]);
+  }, [step, activePhoto]);
 
   useEffect(() => {
     if (!restoreSelectionFocus.current) return;
@@ -64,8 +70,35 @@ export function App() {
     (photos.length ? selectedHeading.current : choosePhotos.current)?.focus();
   }, [photos]);
 
+  function updateEditorHistory(update: (current: CollageHistory) => CollageHistory) {
+    if (!activePhoto) {
+      setHistory(update);
+      return;
+    }
+    const id = activePhoto.id;
+    setPhotoHistories((current) => {
+      const before = current[id] ?? initialHistory;
+      const next = update(before);
+      return before === next ? current : { ...current, [id]: next };
+    });
+  }
+
   function editCollage(edit: CollageEdit, group?: symbol) {
-    setHistory((current) => recordEdit(current, edit, group));
+    updateEditorHistory((current) => recordEdit(current, edit, group));
+  }
+
+  function forgetIndividualEdit(id: string) {
+    setPhotoHistories((current) => {
+      if (!current[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }
+
+  function openIndividualPhoto(id: string) {
+    setActivePhotoId(id);
+    setStep("edit");
   }
 
   function release(photo: PhotoPreview) {
@@ -112,6 +145,8 @@ export function App() {
     if (replacement && ready.length) {
       setPhotos((current) => current.map((photo) => photo.id === replacement.id ? ready[0] : photo));
       setHistory((current) => forgetPhoto(current, replacement.id));
+      forgetIndividualEdit(replacement.id);
+      if (activePhotoId === replacement.id) setActivePhotoId(ready[0].id);
       release(replacement);
     } else if (ready.length) {
       setPhotos((current) => [...current, ...ready]);
@@ -170,6 +205,8 @@ export function App() {
     release(photo);
     setPhotos((current) => current.filter((photo) => photo.id !== id));
     setHistory((current) => photos.length === 1 ? initialHistory : forgetPhoto(current, id));
+    forgetIndividualEdit(id);
+    if (activePhotoId === id) setActivePhotoId(null);
     setMessage("선택한 사진을 제거했어요.");
     setError("");
   }
@@ -248,7 +285,7 @@ export function App() {
             <div className={styles.intro}>
               <h1>사진 가져오기</h1>
               <p className={styles.description}>
-                함께 배치할 사진을 최대 4장 선택하세요.
+                편집할 사진을 최대 4장 선택하세요.
               </p>
             </div>
             <section
@@ -343,6 +380,8 @@ export function App() {
                       photos.forEach(release);
                       setPhotos([]);
                       setHistory(initialHistory);
+                      setPhotoHistories({});
+                      setActivePhotoId(null);
                       setError("");
                       setMessage("선택한 사진을 모두 비웠어요.");
                     }}
@@ -360,19 +399,38 @@ export function App() {
                   선택한 사진은 새로고침하면 사라져요.
                 </p>
                 <div className={styles.selectionActions}>
-                  <Button ref={startEditing} variant="primary" disabled={loading} onClick={() => setStep("edit")}>사진 배치 시작</Button>
+                  <Button ref={startEditing} disabled={loading} onClick={() => {
+                    setActivePhotoId(null);
+                    setStep("edit");
+                  }}>사진 배치 시작</Button>
+                  <Button ref={startIndividual} variant="primary" disabled={loading}
+                    onClick={() => openIndividualPhoto(activePhoto?.id ?? photos[0].id)}>개별 편집 시작</Button>
                 </div>
               </section>
             )}
           </div>
           {step !== "select" && (
             <div className={styles.workspaceContent}>
+              {activePhoto && (
+                <nav className={styles.photoNavigation} aria-label="편집할 사진">
+                  {photos.map((photo, index) => (
+                    <Button key={photo.id} variant="ghost" className={styles.photoTab} aria-pressed={photo.id === activePhoto.id}
+                      aria-label={`${index + 1}번 사진 ${photo.name}`}
+                      onClick={() => { if (photo.id !== activePhoto.id) openIndividualPhoto(photo.id); }}>
+                      <img src={photo.url} alt="" />
+                      <span>{photo.name}</span>
+                    </Button>
+                  ))}
+                </nav>
+              )}
               <CollageEditor
-                photos={photos}
-                document={history.document}
-                canUndo={history.past.length > 0}
+                key={activePhoto?.id ?? "collage"}
+                photos={editorPhotos}
+                individual={Boolean(activePhoto)}
+                document={editorHistory.document}
+                canUndo={editorHistory.past.length > 0}
                 onEdit={editCollage}
-                onUndo={() => setHistory(undoEdit)}
+                onUndo={() => updateEditorHistory(undoEdit)}
                 onSelect={() => setStep("select")}
                 onExport={(exporting) => setStep(exporting ? "export" : "edit")}
               />
