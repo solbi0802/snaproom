@@ -51,6 +51,7 @@
 .photoNumber{position:absolute;top:var(--sr-space-1);left:var(--sr-space-1);padding:0 var(--sr-space-1);border-radius:var(--sr-radius-small);background:var(--sr-color-badge-surface);color:var(--sr-color-muted);font-size:var(--sr-text-caption);font-variant-numeric:tabular-nums}
 .photoMeta{display:flex;align-items:center;min-width:0;padding:var(--sr-space-1);gap:var(--sr-space-1)}
 .photoMeta>span{flex:1;font-size:var(--sr-text-caption);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.photoActions{display:flex;flex-wrap:wrap;justify-content:center;border-top:1px solid var(--sr-color-border);padding:0 var(--sr-space-1)}
 .selectionHint{font-size:var(--sr-text-caption);color:var(--sr-color-muted);margin-top:var(--sr-space-2)}
 .infoSection{padding:var(--sr-space-4);border-bottom:1px solid var(--sr-color-border)}
 .infoSection h3{font-size:var(--sr-text-label);font-weight:var(--sr-weight-medium);margin:0 0 var(--sr-space-4)}
