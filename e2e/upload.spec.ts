@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { reorderPhotoByKeyboard } from './reorderPhoto'
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5WQAAAAASUVORK5CYII=', 'base64')
 
@@ -17,7 +18,7 @@ test('a mixed drop keeps existing and readable photos in order', async ({ page }
 
   const selected = page.getByRole('region', { name: '선택한 사진' })
   await expect(page.getByRole('alert')).toContainText('사진 1장을 열 수 없어요')
-  await expect(page.getByRole('status')).toContainText('현재 2장')
+  await expect(page.getByRole('status', { name: '사진 선택 상태' })).toContainText('현재 2장')
   await expect(selected.getByRole('img').nth(0)).toHaveAttribute('alt', 'existing.png')
   await expect(selected.getByRole('img').nth(1)).toHaveAttribute('alt', 'dropped.png')
   await dataTransfer.dispose()
@@ -27,7 +28,7 @@ test('photos can be reordered or replaced at capacity without losing a photo on 
   await page.goto('/')
   await page.getByRole('button', { name: '샘플 일러스트로 둘러보기' }).click()
   const selected = page.getByRole('region', { name: '선택한 사진' })
-  await selected.getByRole('button', { name: '책상 위 소품 앞쪽으로 이동' }).click()
+  await reorderPhotoByKeyboard(selected.getByRole('button', { name: '책상 위 소품 순서 변경' }), 'ArrowLeft', 1)
   await expect(selected.getByRole('img').first()).toHaveAttribute('alt', '책상 위 소품')
 
   const replace = selected.getByRole('button', { name: '책상 위 소품 교체' })
@@ -41,7 +42,7 @@ test('photos can be reordered or replaced at capacity without losing a photo on 
   await replace.click()
   await (await validSelection).setFiles({ name: 'replacement.png', mimeType: 'image/png', buffer: png })
   await expect(selected.getByRole('img').first()).toHaveAttribute('alt', 'replacement.png')
-  await expect(page.getByRole('status')).toContainText('현재 4장')
+  await expect(page.getByRole('status', { name: '사진 선택 상태' })).toContainText('현재 4장')
   await expect(page.getByRole('alert')).toHaveCount(0)
 })
 
@@ -53,7 +54,7 @@ for (const selection of ['batch', 'one-by-one'] as const) {
       buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5WQAAAAASUVORK5CYII=', 'base64'),
     }))
     const input = page.locator('#photo-files')
-    const status = page.getByRole('status')
+    const status = page.getByRole('status', { name: '사진 선택 상태' })
     if (selection === 'batch') {
       await input.setInputFiles(files)
     } else {

@@ -1,0 +1,21 @@
+.grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sr-space-3); }
+.card { position: relative; min-width: 0; border: 1px solid var(--sr-color-border); border-radius: var(--sr-radius-small); background: var(--sr-color-surface); overflow: hidden; }
+.card[data-dragging=true] { z-index: 1; border-color: var(--sr-color-accent); opacity: .94; }
+.thumbnail { position: relative; aspect-ratio: 1; background: var(--sr-color-hover); }
+.thumbnail img { width: 100%; height: 100%; object-fit: cover; }
+.number { position: absolute; top: var(--sr-space-1); left: var(--sr-space-1); padding: 0 var(--sr-space-1); border-radius: var(--sr-radius-small); background: var(--sr-color-badge-surface); color: var(--sr-color-muted); font-size: var(--sr-text-caption); font-variant-numeric: tabular-nums; }
+.meta { min-width: 0; padding: var(--sr-space-2); font-size: var(--sr-text-caption); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.actions { display: flex; justify-content: flex-end; border-top: 1px solid var(--sr-color-border); padding: var(--sr-space-1); }
+.card > .sortSurface { position: absolute; inset: 0; z-index: 1; border: 0; border-radius: inherit; padding: 0; background: transparent; cursor: grab; user-select: none; }
+.card > .sortSurface:hover:not(:disabled) { background: transparent; }
+.sortSurface:disabled { pointer-events: none; }
+.sortSurface:focus-visible { outline-offset: calc(-1 * var(--sr-focus-width)); }
+.card[data-dragging=true] .sortSurface { cursor: grabbing; }
+.thumbnail > .remove { position: absolute; top: var(--sr-space-1); right: var(--sr-space-1); z-index: 2; color: var(--sr-color-text); background: var(--sr-color-badge-surface); border-color: var(--sr-color-border); }
+.thumbnail > .remove:hover:not(:disabled) { color: var(--sr-color-text); background: var(--sr-color-surface); }
+.actions > button { position: relative; z-index: 2; }
+@media (max-width: 680px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .meta { font-size: var(--sr-text-label); }
+}
+@media (prefers-reduced-motion: reduce) { .card { transition: none !important; } }

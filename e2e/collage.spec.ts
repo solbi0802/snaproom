@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
+import { reorderPhotoByKeyboard } from './reorderPhoto'
 
 test('photo order and layout survive the PNG preview and the download is a 1000px PNG', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '샘플 일러스트로 둘러보기' }).click()
-  await page.getByRole('button', { name: '책상 위 소품 앞쪽으로 이동' }).click()
+  await reorderPhotoByKeyboard(page.getByRole('button', { name: '책상 위 소품 순서 변경' }), 'ArrowLeft', 1)
   await page.getByRole('button', { name: '사진 배치 시작' }).click()
   await page.getByRole('button', { name: '첫 사진 강조' }).click()
   const canvas = page.getByRole('img', { name: '사진 배치 미리보기' })
