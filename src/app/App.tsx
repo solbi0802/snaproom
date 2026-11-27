@@ -6,6 +6,7 @@ import { SortablePhotoGrid } from "../features/upload/SortablePhotoGrid";
 import { MAX_PHOTOS, validateFiles } from "../features/upload/validateFiles";
 import type { Layout } from "../rendering/collage";
 import type { MosaicRegion } from "../rendering/mosaic";
+import type { Sticker } from "../rendering/stickers";
 import { Button } from "../shared/ui/Button";
 import { Icon } from "../shared/ui/Icon";
 import { Notice } from "../shared/ui/Notice";
@@ -30,6 +31,7 @@ export function App() {
   const [step, setStep] = useState<"select" | "edit" | "export">("select");
   const [layout, setLayout] = useState<Layout>("grid");
   const [mosaics, setMosaics] = useState<MosaicRegion[]>([]);
+  const [stickers, setStickers] = useState<Sticker[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   const replaceInput = useRef<HTMLInputElement>(null);
   const replaceId = useRef<string | null>(null);
@@ -148,6 +150,7 @@ export function App() {
     release(photo);
     setPhotos((current) => current.filter((photo) => photo.id !== id));
     setMosaics((current) => current.filter((region) => region.photoId !== id));
+    if (photos.length === 1) setStickers([]);
     setMessage("선택한 사진을 제거했어요.");
     setError("");
   }
@@ -319,6 +322,7 @@ export function App() {
                       photos.forEach(release);
                       setPhotos([]);
                       setMosaics([]);
+                      setStickers([]);
                       setError("");
                       setMessage("선택한 사진을 모두 비웠어요.");
                     }}
@@ -347,6 +351,8 @@ export function App() {
                 photos={photos}
                 layout={photos.length < 3 ? "grid" : layout}
                 mosaics={mosaics}
+                stickers={stickers}
+                setStickers={setStickers}
                 onMosaic={(region) => setMosaics((current) => [...current, region])}
                 onRemoveMosaic={() => setMosaics((current) => current.slice(0, -1))}
                 onLayout={setLayout}

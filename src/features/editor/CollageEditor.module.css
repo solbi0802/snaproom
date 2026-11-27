@@ -22,3 +22,13 @@
 .download:hover { background: var(--sr-color-accent-hover); }
 @media (pointer: coarse), (max-width: 680px) { .download { min-height: var(--sr-touch-target); } }
 @media (pointer: coarse), (max-width: 680px) { .coordinateFields input, .coordinateFields select, .coordinates summary { min-height: var(--sr-touch-target); } }
+
+.stickerControls { margin-bottom: var(--sr-space-3); }
+.stickerSettings, .stickerSettings label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sr-space-2); }
+.stickerSettings label { font-size: var(--sr-text-label); }
+.stickerSettings input { accent-color: var(--sr-color-accent); }
+.stickerLayer { position: absolute; inset: 0; pointer-events: none; }
+.stickerLayer > .stickerHitArea { position: absolute; display: block; min-height: 0; padding: 0; touch-action: none; pointer-events: auto; cursor: grab; background: transparent; }
+.stickerLayer > .stickerHitArea:hover:not(:disabled) { background: transparent; border-color: var(--sr-color-border-strong); }
+.stickerLayer > .stickerHitArea[aria-pressed=true] { border-color: var(--sr-color-accent); }
+.stickerLayer > .stickerHitArea:active { cursor: grabbing; }
