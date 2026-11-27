@@ -31,6 +31,11 @@ export function App() {
   const [history, setHistory] = useState(initialHistory);
   const fileInput = useRef<HTMLInputElement>(null);
   const replaceInput = useRef<HTMLInputElement>(null);
+  const startEditing = useRef<HTMLButtonElement>(null);
+  const choosePhotos = useRef<HTMLButtonElement>(null);
+  const selectedHeading = useRef<HTMLHeadingElement>(null);
+  const restoreSelectionFocus = useRef(false);
+  const previousStep = useRef(step);
   const replaceId = useRef<string | null>(null);
   const loadingRef = useRef(false);
   const activeUrls = useRef(new Set<string>());
@@ -45,6 +50,19 @@ export function App() {
       urls.clear();
     };
   }, []);
+
+  useEffect(() => {
+    if (step === "select" && previousStep.current !== "select") {
+      startEditing.current?.focus();
+    }
+    previousStep.current = step;
+  }, [step]);
+
+  useEffect(() => {
+    if (!restoreSelectionFocus.current) return;
+    restoreSelectionFocus.current = false;
+    (photos.length ? selectedHeading.current : choosePhotos.current)?.focus();
+  }, [photos]);
 
   function editCollage(edit: CollageEdit, group?: symbol) {
     setHistory((current) => recordEdit(current, edit, group));
@@ -144,10 +162,11 @@ export function App() {
     setMessage("샘플 일러스트를 불러왔어요.");
   }
 
-  function removePhoto(id: string) {
+  function removePhoto(id: string, keyboard: boolean) {
     if (loadingRef.current) return;
     const photo = photos.find((photo) => photo.id === id);
     if (!photo) return;
+    restoreSelectionFocus.current = keyboard;
     release(photo);
     setPhotos((current) => current.filter((photo) => photo.id !== id));
     setHistory((current) => photos.length === 1 ? initialHistory : forgetPhoto(current, id));
@@ -220,7 +239,7 @@ export function App() {
             </p>
           </div>
         </aside>
-        <main id="main" className={styles.main}>
+        <main id="main" tabIndex={-1} className={styles.main}>
           <div className={styles.workspaceBar}>
             <WorkflowSteps current={step} />
             <span className={styles.workspaceLabel}>작업 영역</span>
@@ -273,6 +292,7 @@ export function App() {
               />
               <Button
                 variant="primary"
+                ref={choosePhotos}
                 className={styles.primaryButton}
                 onClick={() => fileInput.current?.click()}
                 disabled={loading || photos.length >= MAX_PHOTOS}
@@ -311,14 +331,15 @@ export function App() {
                 aria-labelledby="selected-heading"
               >
                 <div className={styles.selectionHeader}>
-                  <h2 id="selected-heading">
+                  <h2 id="selected-heading" ref={selectedHeading} tabIndex={-1}>
                     선택한 사진 <span>{photos.length} / 4</span>
                   </h2>
                   <Button
                     variant="ghost"
                     disabled={loading}
-                    onClick={() => {
+                    onClick={(event) => {
                       if (loadingRef.current) return;
+                      restoreSelectionFocus.current = event.detail === 0;
                       photos.forEach(release);
                       setPhotos([]);
                       setHistory(initialHistory);
@@ -339,7 +360,7 @@ export function App() {
                   선택한 사진은 새로고침하면 사라져요.
                 </p>
                 <div className={styles.selectionActions}>
-                  <Button variant="primary" disabled={loading} onClick={() => setStep("edit")}>사진 배치 시작</Button>
+                  <Button ref={startEditing} variant="primary" disabled={loading} onClick={() => setStep("edit")}>사진 배치 시작</Button>
                 </div>
               </section>
             )}

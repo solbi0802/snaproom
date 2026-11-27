@@ -7,7 +7,7 @@ import { Icon } from '../../shared/ui/Icon'
 import styles from './SortablePhotoGrid.module.css'
 
 type Photo = { id: string; name: string; url: string }
-type PhotoActions = { onRemove: (id: string) => void; onReplace: (id: string) => void }
+type PhotoActions = { onRemove: (id: string, keyboard: boolean) => void; onReplace: (id: string) => void }
 type GridProps = PhotoActions & {
   photos: readonly Photo[]
   loading: boolean
@@ -68,7 +68,7 @@ function SortablePhoto({ photo, index, loading, canSort, onRemove, onReplace }: 
       <div className={styles.thumbnail}>
         <img src={photo.url} alt={photo.name} draggable={false} />
         <span className={styles.number}>{String(index + 1).padStart(2, '0')}</span>
-        <IconButton className={styles.remove} label={`${photo.name} 제거`} disabled={loading} onClick={() => onRemove(photo.id)}>
+        <IconButton className={styles.remove} label={`${photo.name} 제거`} disabled={loading} onClick={event => onRemove(photo.id, event.detail === 0)}>
           <Icon name="close" />
         </IconButton>
       </div>

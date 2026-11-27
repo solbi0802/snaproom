@@ -10,6 +10,7 @@ type Props = {
   stickers: readonly Sticker[]
   active: boolean
   selectedId: string | null
+  focusStickerId: string | null
   onSelect: (id: string) => void
   onUpdate: (id: string, update: (sticker: Sticker) => Sticker) => void
 }
@@ -47,9 +48,10 @@ function draggedSticker(drag: StickerDrag, clientX: number, clientY: number) {
   return placeSticker({ ...sticker, x: sticker.x + dx, y: sticker.y + dy })
 }
 
-export function StickerLayer({ stickers, active, selectedId, onSelect, onUpdate }: Props) {
+export function StickerLayer({ stickers, active, selectedId, focusStickerId, onSelect, onUpdate }: Props) {
   const layer = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
+  const newlyAdded = useRef<HTMLButtonElement>(null)
   const drag = useRef<StickerDrag | null>(null)
   const [draft, setDraft] = useState<Sticker | null>(null)
   const visibleStickers = useMemo(
@@ -57,6 +59,10 @@ export function StickerLayer({ stickers, active, selectedId, onSelect, onUpdate 
     [active, draft, stickers],
   )
   const selected = active ? visibleStickers.find(sticker => sticker.id === selectedId) : undefined
+
+  useEffect(() => {
+    if (focusStickerId) newlyAdded.current?.focus()
+  }, [focusStickerId])
 
   useLayoutEffect(() => {
     const context = canvas.current?.getContext('2d')
@@ -126,7 +132,8 @@ export function StickerLayer({ stickers, active, selectedId, onSelect, onUpdate 
       onPointerCancel={stop} onLostPointerCapture={stop}>
       <canvas ref={canvas} width={COLLAGE_SIZE} height={COLLAGE_SIZE} aria-hidden="true" />
       {active && visibleStickers.map((sticker, index) => (
-        <Button key={sticker.id} variant="ghost" className={styles.stickerHitArea}
+        <Button key={sticker.id} ref={sticker.id === focusStickerId ? newlyAdded : undefined}
+          variant="ghost" className={styles.stickerHitArea}
           aria-label={`${index + 1}. ${stickerArt[sticker.kind].label} 스티커`} aria-pressed={selectedId === sticker.id}
           aria-describedby="sticker-instructions" aria-description="방향키로 스티커를 옮길 수 있어요."
           style={{

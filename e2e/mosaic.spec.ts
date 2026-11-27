@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { reorderPhotoByKeyboard } from './reorderPhoto'
 
-test('mosaic follows a reordered photo and appears in the exported PNG', async ({ page }) => {
+test('mosaic follows a reordered photo and appears in the exported PNG', async ({ page, isMobile }) => {
   await page.goto('/')
   const encoded = await page.evaluate(() => {
     const canvas = document.createElement('canvas')
@@ -25,15 +25,27 @@ test('mosaic follows a reordered photo and appears in the exported PNG', async (
     [...element.getContext('2d')!.getImageData(x, 500, 1, 1).data], x)
   await expect.poll(() => readCanvas(240)).toEqual([255, 0, 0, 255])
   await page.getByRole('button', { name: '모자이크', exact: true }).click()
+  await canvas.scrollIntoViewIfNeeded()
   const bounds = await canvas.boundingBox()
   if (!bounds) throw new Error('Canvas is unavailable')
   const point = (x: number, y: number) => ({ x: bounds.x + x * bounds.width / 1000, y: bounds.y + y * bounds.height / 1000 })
   const start = point(263, 510)
   const end = point(230, 490)
-  await page.mouse.move(start.x, start.y)
-  await page.mouse.down()
-  await page.mouse.move(end.x, end.y, { steps: 4 })
-  await page.mouse.up()
+  if (isMobile) {
+    const session = await page.context().newCDPSession(page)
+    try {
+      await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [start] })
+      await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [end] })
+      await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    } finally {
+      await session.detach()
+    }
+  } else {
+    await page.mouse.move(start.x, start.y)
+    await page.mouse.down()
+    await page.mouse.move(end.x, end.y, { steps: 4 })
+    await page.mouse.up()
+  }
   await expect(page.getByRole('status')).toContainText('1번 사진에 모자이크를 적용했어요')
   await expect.poll(() => readCanvas(240)).not.toEqual([255, 0, 0, 255])
   await expect.poll(() => readCanvas(180)).toEqual([255, 0, 0, 255])

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { FormEvent, PointerEvent } from 'react'
+import type { FormEvent, KeyboardEvent, PointerEvent } from 'react'
 import { COLLAGE_SIZE, collageCells, coverCrop, drawCollage } from '../../rendering/collage'
 import type { CollagePhoto, Rect } from '../../rendering/collage'
 import { intersect, rectangleBetween, toPhotoArea } from '../../rendering/mosaic'
@@ -26,6 +26,7 @@ type Props = {
 export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUndo, onSelect, onExport }: Props) {
   const { mosaics, stickers, background, gap } = collage
   const layout = photos.length < 3 ? 'grid' : collage.layout
+  const heading = useRef<HTMLHeadingElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const resultUrl = useRef<string | null>(null)
   const mounted = useRef(false)
@@ -35,6 +36,7 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
   const [preview, setPreview] = useState<string | null>(null)
   const [tool, setTool] = useState<'mosaic' | 'sticker' | null>(null)
   const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null)
+  const [focusStickerId, setFocusStickerId] = useState<string | null>(null)
   const stickerTool = useRef<HTMLButtonElement>(null)
   const mosaicMode = tool === 'mosaic'
   const stickerMode = tool === 'sticker'
@@ -43,6 +45,11 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
   const [mosaicMessage, setMosaicMessage] = useState('')
   const drag = useRef<{ pointerId: number; index: number; start: Point } | null>(null)
   const cells = collageCells(photos.length, layout, gap)
+  const showingPreview = Boolean(preview)
+
+  useEffect(() => {
+    heading.current?.focus()
+  }, [showingPreview])
 
   useEffect(() => {
     mounted.current = true
@@ -147,7 +154,7 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
     })
   }
 
-  function addSticker(kind: StickerKind) {
+  function addSticker(kind: StickerKind, focusNewSticker: boolean) {
     const id = crypto.randomUUID()
     const center = COLLAGE_SIZE / 2 + (stickers.length % 6) * 24
     onEdit(document => ({
@@ -155,6 +162,7 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
       stickers: [...document.stickers, { id, kind, x: center, y: center, size: stickerSize.initial }],
     }))
     setSelectedStickerId(id)
+    setFocusStickerId(focusNewSticker ? id : null)
   }
 
   function updateSticker(id: string, update: (sticker: Sticker) => Sticker) {
@@ -171,6 +179,20 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
     onEdit(document => ({ ...document, stickers: document.stickers.filter(sticker => sticker.id !== id) }))
     setSelectedStickerId(null)
     stickerTool.current?.focus()
+  }
+
+  function undo() {
+    onUndo()
+    setMosaicMessage('마지막 편집을 되돌렸어요.')
+  }
+
+  function onEditorKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (showingPreview || saving || !canUndo || event.defaultPrevented || event.altKey || event.shiftKey ||
+      !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z') return
+    if (event.target instanceof HTMLElement && (event.target.isContentEditable ||
+      event.target.closest('input, textarea, select'))) return
+    event.preventDefault()
+    undo()
   }
 
   function backToLayout() {
@@ -210,8 +232,8 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
   }
 
   return (
-    <section className={styles.editor} aria-labelledby="collage-heading">
-      <h1 id="collage-heading">{preview ? '저장 미리보기' : '사진 배치'}</h1>
+    <section className={styles.editor} aria-labelledby="collage-heading" onKeyDown={onEditorKeyDown}>
+      <h1 id="collage-heading" ref={heading} tabIndex={-1}>{preview ? '저장 미리보기' : '사진 배치'}</h1>
       {!preview && (
         <div className={styles.toolbar} role="group" aria-label="사진 레이아웃">
           <Button aria-pressed={layout === 'grid'} onClick={() => onEdit(document => document.layout === 'grid' ? document : { ...document, layout: 'grid' })} disabled={saving}>기본 배치</Button>
@@ -223,10 +245,8 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
           <Button aria-pressed={mosaicMode} disabled={!images.length || saving} onClick={() => setTool(mosaicMode ? null : 'mosaic')}>모자이크</Button>
           <Button ref={stickerTool} aria-pressed={stickerMode} disabled={!images.length || saving}
             onClick={() => setTool(stickerMode ? null : 'sticker')}>스티커</Button>
-          <Button variant="ghost" disabled={!canUndo || saving} onClick={() => {
-            onUndo()
-            setMosaicMessage('')
-          }}>실행 취소</Button>
+          <Button variant="ghost" disabled={!canUndo || saving} aria-keyshortcuts="Control+Z Meta+Z"
+            onClick={undo}>실행 취소</Button>
           <Button variant="ghost" disabled={!mosaics.length || saving} onClick={() => {
             onEdit(document => ({ ...document, mosaics: document.mosaics.slice(0, -1) }))
             setMosaicMessage('마지막 모자이크를 지웠어요.')
@@ -240,7 +260,7 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
         <div className={styles.stickerControls}>
           <div className={styles.toolbar} role="group" aria-label="스티커 추가">
             {(Object.keys(stickerArt) as StickerKind[]).map(kind => (
-              <Button key={kind} disabled={saving} onClick={() => addSticker(kind)}>
+              <Button key={kind} disabled={saving} onClick={event => addSticker(kind, event.detail === 0)}>
                 <span aria-hidden="true" style={{ color: stickerArt[kind].color }}>{stickerArt[kind].symbol}</span>
                 {stickerArt[kind].label} 추가
               </Button>
@@ -258,7 +278,7 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
             role="img" aria-label="사진 배치 미리보기" onPointerDown={startMosaic} onPointerMove={moveMosaic}
             onPointerUp={finishMosaic} onPointerCancel={cancelMosaic} onLostPointerCapture={cancelMosaic} />
           <StickerLayer stickers={stickers} active={stickerMode && !preview && !saving}
-            selectedId={selectedStickerId} onSelect={setSelectedStickerId} onUpdate={updateSticker} />
+            selectedId={selectedStickerId} focusStickerId={focusStickerId} onSelect={setSelectedStickerId} onUpdate={updateSticker} />
           {selection && <div className={styles.selection} aria-hidden="true" style={{
             left: `${selection.x / COLLAGE_SIZE * 100}%`, top: `${selection.y / COLLAGE_SIZE * 100}%`,
             width: `${selection.width / COLLAGE_SIZE * 100}%`, height: `${selection.height / COLLAGE_SIZE * 100}%`,
