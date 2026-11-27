@@ -109,3 +109,40 @@ test('a local PNG renders and can be removed', async ({ page }) => {
   await page.getByRole('button', { name: 'photo.png 제거' }).click()
   await expect(photo).toHaveCount(0)
 })
+
+
+test('count, size, and empty-file rejections preserve the current selection', async ({ page }) => {
+  await page.goto('/')
+  const input = page.locator('#photo-files')
+  const selected = page.getByRole('region', { name: '선택한 사진' })
+  const keep = { name: 'keep.png', mimeType: 'image/png', buffer: png }
+  await input.setInputFiles(keep)
+  await expect(selected.getByRole('img', { name: keep.name })).toBeVisible()
+
+  await input.setInputFiles(Array.from({ length: 4 }, (_, index) => ({ ...keep, name: `extra-${index}.png` })))
+  await expect(page.getByRole('alert')).toContainText('사진은 최대 4장까지 선택할 수 있어요.')
+  await expect(selected.getByRole('img')).toHaveCount(1)
+
+  const dataTransfer = await page.evaluateHandle(() => {
+    const transfer = new DataTransfer()
+    transfer.items.add(new File([new ArrayBuffer(20 * 1024 * 1024 + 1)], 'oversize.png', { type: 'image/png' }))
+    return transfer
+  })
+  try {
+    await page.getByRole('region', { name: '사진을 여기에 끌어 놓으세요' }).dispatchEvent('drop', { dataTransfer })
+    await expect(page.getByRole('alert')).toContainText('20MB 이하여야 해요.')
+  } finally {
+    await dataTransfer.dispose()
+  }
+  await expect(selected.getByRole('img')).toHaveCount(1)
+
+  await input.setInputFiles({ name: 'empty.png', mimeType: 'image/png', buffer: Buffer.alloc(0) })
+  await expect(page.getByRole('alert')).toContainText('내용이 없는 파일이에요.')
+  await expect(selected.getByRole('img', { name: keep.name })).toBeVisible()
+  await expect(selected.getByRole('img')).toHaveCount(1)
+
+  await input.setInputFiles({ ...keep, name: 'retry.png' })
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(selected.getByRole('img')).toHaveCount(2)
+  await expect(page.getByRole('status', { name: '사진 선택 상태' })).toContainText('현재 2장')
+})
