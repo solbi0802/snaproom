@@ -33,6 +33,34 @@ test('a sticker can be moved, resized, exported, and deleted', async ({ page, is
     }
   }
 
+  // A cancelled drag must discard its preview without creating an undo entry.
+  await sticker.scrollIntoViewIfNeeded()
+  const box = await sticker.boundingBox()
+  if (!box) throw new Error('Sticker is unavailable')
+  const initial = await sticker.evaluate(element => element.style.left)
+  await sticker.evaluate(element => {
+    element.addEventListener('pointerdown', event => {
+      if (event instanceof PointerEvent) element.dataset.testPointer = String(event.pointerId)
+    }, { once: true })
+  })
+  const x = box.x + box.width / 2
+  const y = box.y + box.height / 2
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x + 30, y + 10, { steps: 5 })
+  await expect.poll(() => sticker.evaluate(element => element.style.left)).not.toBe(initial)
+  await sticker.evaluate(element => {
+    element.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: Number(element.dataset.testPointer) }))
+  })
+  await page.mouse.up()
+  await expect.poll(() => sticker.evaluate(element => element.style.left)).toBe(initial)
+  const undo = page.getByRole('button', { name: '실행 취소' })
+  await undo.click()
+  await expect(sticker).toHaveCount(0)
+  await expect(undo).toBeDisabled()
+  await page.getByRole('button', { name: '별 추가' }).click()
+  await expect(sticker).toHaveAttribute('aria-pressed', 'true')
+
   await drag(sticker, 30, 20)
 
   const center = () => sticker.evaluate(element => ({
@@ -89,4 +117,5 @@ test('a sticker can be moved, resized, exported, and deleted', async ({ page, is
   await expect(sticker).toHaveCount(0)
   await page.getByRole('button', { name: '저장 미리보기' }).click()
   await expect.poll(previewPixel).not.toEqual([255, 208, 91, 255])
+
 })

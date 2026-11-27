@@ -14,7 +14,7 @@ import { Notice } from '../../shared/ui/Notice'
 import styles from './CollageEditor.module.css'
 
 type Props = {
-  photos: readonly { id: string; url: string; name: string }[]
+  photos: readonly { id: string; url: string; name: string; image?: HTMLImageElement }[]
   document: CollageDocument
   canUndo: boolean
   onEdit: (edit: CollageEdit, group?: symbol) => void
@@ -47,7 +47,8 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
   useEffect(() => {
     mounted.current = true
     let cancelled = false
-    void Promise.all(photos.map(async ({ id, url }) => {
+    void Promise.all(photos.map(async ({ id, url, image: decoded }) => {
+      if (decoded) return { id, image: decoded }
       const image = new Image()
       image.src = url
       await image.decode()
@@ -156,14 +157,14 @@ export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUn
     setSelectedStickerId(id)
   }
 
-  function updateSticker(id: string, update: (sticker: Sticker) => Sticker, group?: symbol) {
+  function updateSticker(id: string, update: (sticker: Sticker) => Sticker) {
     onEdit(document => {
       const sticker = document.stickers.find(item => item.id === id)
       if (!sticker) return document
       const next = placeSticker(update(sticker))
       if (next.x === sticker.x && next.y === sticker.y && next.size === sticker.size) return document
       return { ...document, stickers: document.stickers.map(item => item.id === id ? next : item) }
-    }, group)
+    })
   }
 
   function removeSticker(id: string) {

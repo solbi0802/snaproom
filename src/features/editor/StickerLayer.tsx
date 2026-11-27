@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent, PointerEvent } from 'react'
 import { COLLAGE_SIZE } from '../../rendering/collage'
-import { drawStickers, resizeSticker, stickerArt } from '../../rendering/stickers'
+import { drawStickers, placeSticker, resizeSticker, stickerArt } from '../../rendering/stickers'
 import type { Sticker, StickerCorner } from '../../rendering/stickers'
 import { Button } from '../../shared/ui/Button'
 import styles from './CollageEditor.module.css'
@@ -11,7 +11,7 @@ type Props = {
   active: boolean
   selectedId: string | null
   onSelect: (id: string) => void
-  onUpdate: (id: string, update: (sticker: Sticker) => Sticker, group?: symbol) => void
+  onUpdate: (id: string, update: (sticker: Sticker) => Sticker) => void
 }
 
 const arrowOffsets: Readonly<Record<string, readonly [number, number] | undefined>> = {
@@ -25,49 +25,89 @@ const resizeCorners = [
   { label: '오른쪽 아래', corner: [1, 1], position: 'bottom-right' },
 ] as const
 
-export function StickerLayer({ stickers, active, selectedId, onSelect, onUpdate }: Props) {
-  const canvas = useRef<HTMLCanvasElement>(null)
-  const selected = active ? stickers.find(sticker => sticker.id === selectedId) : undefined
-  const drag = useRef<{ pointerId: number; sticker: Sticker; corner?: StickerCorner; group: symbol; clientX: number; clientY: number; scale: number } | null>(null)
+type StickerDrag = {
+  pointerId: number
+  sticker: Sticker
+  corner?: StickerCorner
+  clientX: number
+  clientY: number
+  scale: number
+  frame: number | null
+  next: Sticker
+}
 
-  useEffect(() => {
+function draggedSticker(drag: StickerDrag, clientX: number, clientY: number) {
+  const { sticker, corner, scale } = drag
+  const dx = (clientX - drag.clientX) * scale
+  const dy = (clientY - drag.clientY) * scale
+  if (corner) {
+    const delta = Math.abs(dx) >= Math.abs(dy) ? dx * corner[0] : dy * corner[1]
+    return resizeSticker(sticker, sticker.size + delta, corner)
+  }
+  return placeSticker({ ...sticker, x: sticker.x + dx, y: sticker.y + dy })
+}
+
+export function StickerLayer({ stickers, active, selectedId, onSelect, onUpdate }: Props) {
+  const layer = useRef<HTMLDivElement>(null)
+  const canvas = useRef<HTMLCanvasElement>(null)
+  const drag = useRef<StickerDrag | null>(null)
+  const [draft, setDraft] = useState<Sticker | null>(null)
+  const visibleStickers = useMemo(
+    () => active && draft ? stickers.map(sticker => sticker.id === draft.id ? draft : sticker) : stickers,
+    [active, draft, stickers],
+  )
+  const selected = active ? visibleStickers.find(sticker => sticker.id === selectedId) : undefined
+
+  useLayoutEffect(() => {
     const context = canvas.current?.getContext('2d')
     if (!context) return
     context.clearRect(0, 0, COLLAGE_SIZE, COLLAGE_SIZE)
-    drawStickers(context, stickers)
-  }, [stickers])
+    drawStickers(context, visibleStickers)
+  }, [visibleStickers])
+
+  useEffect(() => () => {
+    const current = drag.current
+    if (current && current.frame !== null) cancelAnimationFrame(current.frame)
+  }, [])
 
   function start(event: PointerEvent<HTMLButtonElement>, sticker: Sticker, corner?: StickerCorner) {
-    if (!event.isPrimary || event.button !== 0) return
-    const width = canvas.current?.clientWidth
-    if (!width) return
+    if (!active || !event.isPrimary || event.button !== 0 || drag.current) return
+    const width = canvas.current?.getBoundingClientRect().width
+    if (!width || !layer.current) return
+    layer.current.setPointerCapture(event.pointerId)
     onSelect(sticker.id)
-    drag.current = { pointerId: event.pointerId, sticker, corner, group: Symbol(), clientX: event.clientX, clientY: event.clientY, scale: COLLAGE_SIZE / width }
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-
-  function move(event: PointerEvent<HTMLButtonElement>) {
-    const current = drag.current
-    if (!current || current.pointerId !== event.pointerId) return
-    const dx = (event.clientX - current.clientX) * current.scale
-    const dy = (event.clientY - current.clientY) * current.scale
-    const original = current.sticker
-    const corner = current.corner
-    if (corner) {
-      const delta = Math.abs(dx) >= Math.abs(dy) ? dx * corner[0] : dy * corner[1]
-      onUpdate(original.id, () => resizeSticker(original, original.size + delta, corner), current.group)
-    } else {
-      onUpdate(original.id, sticker => ({ ...sticker, x: original.x + dx, y: original.y + dy }), current.group)
+    drag.current = {
+      pointerId: event.pointerId, sticker, corner, clientX: event.clientX, clientY: event.clientY,
+      scale: COLLAGE_SIZE / width, frame: null, next: sticker,
     }
   }
 
-  function stop(event: PointerEvent<HTMLButtonElement>) {
-    if (drag.current?.pointerId === event.pointerId) drag.current = null
+  function move(event: PointerEvent<HTMLDivElement>) {
+    const current = drag.current
+    if (!active || !current || current.pointerId !== event.pointerId) return
+    current.next = draggedSticker(current, event.clientX, event.clientY)
+    if (current.frame !== null) return
+    current.frame = requestAnimationFrame(() => {
+      current.frame = null
+      setDraft(current.next)
+    })
   }
 
-  function finish(event: PointerEvent<HTMLButtonElement>) {
-    move(event)
-    stop(event)
+  function stop(event: PointerEvent<HTMLDivElement>) {
+    const current = drag.current
+    if (!current || current.pointerId !== event.pointerId) return
+    if (current.frame !== null) cancelAnimationFrame(current.frame)
+    drag.current = null
+    setDraft(null)
+    return current
+  }
+
+  function finish(event: PointerEvent<HTMLDivElement>) {
+    const current = stop(event)
+    if (active && current) {
+      const next = draggedSticker(current, event.clientX, event.clientY)
+      onUpdate(next.id, () => next)
+    }
   }
 
   function changeByKey(event: KeyboardEvent<HTMLButtonElement>, id: string, corner?: StickerCorner) {
@@ -82,9 +122,10 @@ export function StickerLayer({ stickers, active, selectedId, onSelect, onUpdate 
   }
 
   return (
-    <div className={styles.stickerLayer}>
+    <div ref={layer} className={styles.stickerLayer} onPointerMove={move} onPointerUp={finish}
+      onPointerCancel={stop} onLostPointerCapture={stop}>
       <canvas ref={canvas} width={COLLAGE_SIZE} height={COLLAGE_SIZE} aria-hidden="true" />
-      {active && stickers.map((sticker, index) => (
+      {active && visibleStickers.map((sticker, index) => (
         <Button key={sticker.id} variant="ghost" className={styles.stickerHitArea}
           aria-label={`${index + 1}. ${stickerArt[sticker.kind].label} 스티커`} aria-pressed={selectedId === sticker.id}
           aria-describedby="sticker-instructions" aria-description="방향키로 스티커를 옮길 수 있어요."
@@ -95,8 +136,7 @@ export function StickerLayer({ stickers, active, selectedId, onSelect, onUpdate 
             height: `${sticker.size / COLLAGE_SIZE * 100}%`,
           }}
           onClick={() => onSelect(sticker.id)} onKeyDown={event => changeByKey(event, sticker.id)}
-          onPointerDown={event => start(event, sticker)} onPointerMove={move} onPointerUp={finish}
-          onPointerCancel={stop} onLostPointerCapture={stop} />
+          onPointerDown={event => start(event, sticker)} />
       ))}
       {selected && resizeCorners.map(({ label, corner, position }) => (
         <Button key={`${selected.id}-${position}`} variant="ghost" className={styles.stickerResizeHandle}
@@ -108,8 +148,7 @@ export function StickerLayer({ stickers, active, selectedId, onSelect, onUpdate 
             top: `${(selected.y + corner[1] * selected.size / 2) / COLLAGE_SIZE * 100}%`,
           }}
           onKeyDown={event => changeByKey(event, selected.id, corner)}
-          onPointerDown={event => start(event, selected, corner)} onPointerMove={move} onPointerUp={finish}
-          onPointerCancel={stop} onLostPointerCapture={stop}>
+          onPointerDown={event => start(event, selected, corner)}>
           <span className={styles.stickerResizeGrip} aria-hidden="true" />
         </Button>
       ))}

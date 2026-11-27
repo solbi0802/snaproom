@@ -13,7 +13,7 @@ import { PanelHeader } from "../shared/ui/PanelHeader";
 import { WorkflowSteps } from "../shared/ui/WorkflowSteps";
 import styles from "./App.module.css";
 
-type PhotoPreview = { id: string; name: string; url: string; local: boolean };
+type PhotoPreview = { id: string; name: string; url: string; local: boolean; image?: HTMLImageElement };
 const samples = [
   { name: "캔버스 가방", url: "/samples/bag.svg" },
   { name: "책상 위 소품", url: "/samples/desk.svg" },
@@ -79,7 +79,7 @@ export function App() {
       const image = new Image();
       image.src = photo.url;
       await image.decode();
-      return photo;
+      return { ...photo, image };
     }));
     if (!next.some((photo) => activeUrls.current.has(photo.url))) return;
 
