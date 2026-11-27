@@ -83,6 +83,8 @@ test('a sticker can be moved, resized, exported, and deleted', async ({ page, is
 
   await page.getByRole('button', { name: '배치로 돌아가기' }).click()
   await expect(sticker).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: '실행 취소' }).click()
+  await expect.poll(size).toBeCloseTo(reduced + 1)
   await page.getByRole('button', { name: '선택한 스티커 삭제' }).click()
   await expect(sticker).toHaveCount(0)
   await page.getByRole('button', { name: '저장 미리보기' }).click()

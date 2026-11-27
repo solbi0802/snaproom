@@ -4,9 +4,8 @@ import { arrayMove } from "@dnd-kit/sortable";
 import { CollageEditor } from "../features/editor/CollageEditor";
 import { SortablePhotoGrid } from "../features/upload/SortablePhotoGrid";
 import { MAX_PHOTOS, validateFiles } from "../features/upload/validateFiles";
-import type { Layout } from "../rendering/collage";
-import type { MosaicRegion } from "../rendering/mosaic";
-import type { Sticker } from "../rendering/stickers";
+import { forgetPhoto, initialHistory, recordEdit, undoEdit } from "../features/editor/collageHistory";
+import type { CollageEdit } from "../features/editor/collageHistory";
 import { Button } from "../shared/ui/Button";
 import { Icon } from "../shared/ui/Icon";
 import { Notice } from "../shared/ui/Notice";
@@ -29,9 +28,7 @@ export function App() {
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"select" | "edit" | "export">("select");
-  const [layout, setLayout] = useState<Layout>("grid");
-  const [mosaics, setMosaics] = useState<MosaicRegion[]>([]);
-  const [stickers, setStickers] = useState<Sticker[]>([]);
+  const [history, setHistory] = useState(initialHistory);
   const fileInput = useRef<HTMLInputElement>(null);
   const replaceInput = useRef<HTMLInputElement>(null);
   const replaceId = useRef<string | null>(null);
@@ -48,6 +45,10 @@ export function App() {
       urls.clear();
     };
   }, []);
+
+  function editCollage(edit: CollageEdit, group?: symbol) {
+    setHistory((current) => recordEdit(current, edit, group));
+  }
 
   function release(photo: PhotoPreview) {
     if (photo.local) {
@@ -92,7 +93,7 @@ export function App() {
 
     if (replacement && ready.length) {
       setPhotos((current) => current.map((photo) => photo.id === replacement.id ? ready[0] : photo));
-      setMosaics((current) => current.filter((region) => region.photoId !== replacement.id));
+      setHistory((current) => forgetPhoto(current, replacement.id));
       release(replacement);
     } else if (ready.length) {
       setPhotos((current) => [...current, ...ready]);
@@ -149,8 +150,7 @@ export function App() {
     if (!photo) return;
     release(photo);
     setPhotos((current) => current.filter((photo) => photo.id !== id));
-    setMosaics((current) => current.filter((region) => region.photoId !== id));
-    if (photos.length === 1) setStickers([]);
+    setHistory((current) => photos.length === 1 ? initialHistory : forgetPhoto(current, id));
     setMessage("선택한 사진을 제거했어요.");
     setError("");
   }
@@ -321,8 +321,7 @@ export function App() {
                       if (loadingRef.current) return;
                       photos.forEach(release);
                       setPhotos([]);
-                      setMosaics([]);
-                      setStickers([]);
+                      setHistory(initialHistory);
                       setError("");
                       setMessage("선택한 사진을 모두 비웠어요.");
                     }}
@@ -349,13 +348,10 @@ export function App() {
             <div className={styles.workspaceContent}>
               <CollageEditor
                 photos={photos}
-                layout={photos.length < 3 ? "grid" : layout}
-                mosaics={mosaics}
-                stickers={stickers}
-                setStickers={setStickers}
-                onMosaic={(region) => setMosaics((current) => [...current, region])}
-                onRemoveMosaic={() => setMosaics((current) => current.slice(0, -1))}
-                onLayout={setLayout}
+                document={history.document}
+                canUndo={history.past.length > 0}
+                onEdit={editCollage}
+                onUndo={() => setHistory(undoEdit)}
                 onSelect={() => setStep("select")}
                 onExport={(exporting) => setStep(exporting ? "export" : "edit")}
               />

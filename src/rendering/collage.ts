@@ -2,33 +2,35 @@ import { intersect, toCanvasRect } from './mosaic'
 import type { MosaicRegion } from './mosaic'
 
 export const COLLAGE_SIZE = 1000
-const GAP = 12
-const INNER = COLLAGE_SIZE - 2 * GAP
+export const MAX_COLLAGE_GAP = 64
+export type CollageAppearance = { background: string; gap: number }
+export const COLLAGE_DEFAULTS: CollageAppearance = { background: '#ffffff', gap: 12 }
 
 export type Layout = 'grid' | 'featured'
 export type Rect = { x: number; y: number; width: number; height: number }
 
-export function collageCells(count: number, layout: Layout): Rect[] {
-  const half = (INNER - GAP) / 2
-  const second = GAP + half + GAP
+export function collageCells(count: number, layout: Layout, gap = COLLAGE_DEFAULTS.gap): Rect[] {
+  const inner = COLLAGE_SIZE - 2 * gap
+  const half = (inner - gap) / 2
+  const second = gap + half + gap
   if (count < 1 || count > 4) return []
-  if (count === 1) return [{ x: GAP, y: GAP, width: INNER, height: INNER }]
-  if (count === 2) return [GAP, second].map(x => ({ x, y: GAP, width: half, height: INNER }))
+  if (count === 1) return [{ x: gap, y: gap, width: inner, height: inner }]
+  if (count === 2) return [gap, second].map(x => ({ x, y: gap, width: half, height: inner }))
 
   if (layout === 'featured') {
-    const height = (INNER - (count - 2) * GAP) / (count - 1)
+    const height = (inner - (count - 2) * gap) / (count - 1)
     return [
-      { x: GAP, y: GAP, width: half, height: INNER },
+      { x: gap, y: gap, width: half, height: inner },
       ...Array.from({ length: count - 1 }, (_, index) => ({
-        x: second, y: GAP + index * (height + GAP), width: half, height,
+        x: second, y: gap + index * (height + gap), width: half, height,
       })),
     ]
   }
 
   return [
-    { x: GAP, y: GAP, width: half, height: half },
-    { x: second, y: GAP, width: half, height: half },
-    { x: GAP, y: second, width: count === 3 ? INNER : half, height: half },
+    { x: gap, y: gap, width: half, height: half },
+    { x: second, y: gap, width: half, height: half },
+    { x: gap, y: second, width: count === 3 ? inner : half, height: half },
     ...(count === 4 ? [{ x: second, y: second, width: half, height: half }] : []),
   ]
 }
@@ -42,16 +44,22 @@ export function coverCrop(width: number, height: number, cell: Rect): Rect {
 
 export type CollagePhoto = { id: string; image: HTMLImageElement }
 
-export function drawCollage(canvas: HTMLCanvasElement, photos: readonly CollagePhoto[], layout: Layout, mosaics: readonly MosaicRegion[]) {
+export function drawCollage(
+  canvas: HTMLCanvasElement,
+  photos: readonly CollagePhoto[],
+  layout: Layout,
+  mosaics: readonly MosaicRegion[],
+  { background, gap }: CollageAppearance = COLLAGE_DEFAULTS,
+) {
   const context = canvas.getContext('2d')
   if (!context) throw new Error('Canvas is unavailable')
 
   canvas.width = COLLAGE_SIZE
   canvas.height = COLLAGE_SIZE
-  context.fillStyle = 'white'
+  context.fillStyle = background
   context.fillRect(0, 0, COLLAGE_SIZE, COLLAGE_SIZE)
   const pixelCanvas = mosaics.length ? document.createElement('canvas') : null
-  collageCells(photos.length, layout).forEach((cell, index) => {
+  collageCells(photos.length, layout, gap).forEach((cell, index) => {
     const { id, image } = photos[index]
     const crop = coverCrop(image.naturalWidth, image.naturalHeight, cell)
     context.drawImage(image, crop.x, crop.y, crop.width, crop.height, cell.x, cell.y, cell.width, cell.height)

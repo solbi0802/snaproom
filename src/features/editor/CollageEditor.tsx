@@ -1,30 +1,31 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Dispatch, FormEvent, PointerEvent, SetStateAction } from 'react'
+import type { FormEvent, PointerEvent } from 'react'
 import { COLLAGE_SIZE, collageCells, coverCrop, drawCollage } from '../../rendering/collage'
-import type { CollagePhoto, Layout, Rect } from '../../rendering/collage'
+import type { CollagePhoto, Rect } from '../../rendering/collage'
 import { intersect, rectangleBetween, toPhotoArea } from '../../rendering/mosaic'
-import type { MosaicRegion, Point } from '../../rendering/mosaic'
+import type { Point } from '../../rendering/mosaic'
 import { drawStickers, placeSticker, stickerArt, stickerSize } from '../../rendering/stickers'
 import type { Sticker, StickerKind } from '../../rendering/stickers'
 import { Button } from '../../shared/ui/Button'
 import { StickerLayer } from './StickerLayer'
+import { CollageAppearanceControls } from './CollageAppearanceControls'
+import type { CollageDocument, CollageEdit } from './collageHistory'
 import { Notice } from '../../shared/ui/Notice'
 import styles from './CollageEditor.module.css'
 
 type Props = {
   photos: readonly { id: string; url: string; name: string }[]
-  layout: Layout
-  mosaics: readonly MosaicRegion[]
-  stickers: readonly Sticker[]
-  setStickers: Dispatch<SetStateAction<Sticker[]>>
-  onMosaic: (region: MosaicRegion) => void
-  onRemoveMosaic: () => void
-  onLayout: (layout: Layout) => void
+  document: CollageDocument
+  canUndo: boolean
+  onEdit: (edit: CollageEdit, group?: symbol) => void
+  onUndo: () => void
   onSelect: () => void
   onExport: (exporting: boolean) => void
 }
 
-export function CollageEditor({ photos, layout, mosaics, stickers, setStickers, onMosaic, onRemoveMosaic, onLayout, onSelect, onExport }: Props) {
+export function CollageEditor({ photos, document: collage, canUndo, onEdit, onUndo, onSelect, onExport }: Props) {
+  const { mosaics, stickers, background, gap } = collage
+  const layout = photos.length < 3 ? 'grid' : collage.layout
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const resultUrl = useRef<string | null>(null)
   const mounted = useRef(false)
@@ -41,7 +42,7 @@ export function CollageEditor({ photos, layout, mosaics, stickers, setStickers, 
   const [selection, setSelection] = useState<Rect | null>(null)
   const [mosaicMessage, setMosaicMessage] = useState('')
   const drag = useRef<{ pointerId: number; index: number; start: Point } | null>(null)
-  const cells = collageCells(photos.length, layout)
+  const cells = collageCells(photos.length, layout, gap)
 
   useEffect(() => {
     mounted.current = true
@@ -67,7 +68,7 @@ export function CollageEditor({ photos, layout, mosaics, stickers, setStickers, 
   useEffect(() => {
     if (!canvasRef.current || !images.length) return
     try {
-      drawCollage(canvasRef.current, images, layout, mosaics)
+      drawCollage(canvasRef.current, images, layout, mosaics, { background, gap })
     } catch {
       // Report the failure through the same asynchronous path as image decoding.
       let active = true
@@ -76,7 +77,7 @@ export function CollageEditor({ photos, layout, mosaics, stickers, setStickers, 
       })
       return () => { active = false }
     }
-  }, [images, layout, mosaics])
+  }, [images, layout, mosaics, background, gap])
 
   function applyMosaic(index: number, selection: Rect) {
     const photo = images[index]
@@ -88,7 +89,8 @@ export function CollageEditor({ photos, layout, mosaics, stickers, setStickers, 
       return
     }
     const { naturalWidth: width, naturalHeight: height } = photo.image
-    onMosaic({ photoId: photo.id, area: toPhotoArea(clipped, cell, coverCrop(width, height, cell), width, height) })
+    const area = toPhotoArea(clipped, cell, coverCrop(width, height, cell), width, height)
+    onEdit(document => ({ ...document, mosaics: [...document.mosaics, { photoId: photo.id, area }] }))
     setMosaicMessage(`${index + 1}번 사진에 모자이크를 적용했어요.`)
   }
 
@@ -147,16 +149,25 @@ export function CollageEditor({ photos, layout, mosaics, stickers, setStickers, 
   function addSticker(kind: StickerKind) {
     const id = crypto.randomUUID()
     const center = COLLAGE_SIZE / 2 + (stickers.length % 6) * 24
-    setStickers(current => [...current, { id, kind, x: center, y: center, size: stickerSize.initial }])
+    onEdit(document => ({
+      ...document,
+      stickers: [...document.stickers, { id, kind, x: center, y: center, size: stickerSize.initial }],
+    }))
     setSelectedStickerId(id)
   }
 
-  function updateSticker(id: string, update: (sticker: Sticker) => Sticker) {
-    setStickers(current => current.map(sticker => sticker.id === id ? placeSticker(update(sticker)) : sticker))
+  function updateSticker(id: string, update: (sticker: Sticker) => Sticker, group?: symbol) {
+    onEdit(document => {
+      const sticker = document.stickers.find(item => item.id === id)
+      if (!sticker) return document
+      const next = placeSticker(update(sticker))
+      if (next.x === sticker.x && next.y === sticker.y && next.size === sticker.size) return document
+      return { ...document, stickers: document.stickers.map(item => item.id === id ? next : item) }
+    }, group)
   }
 
   function removeSticker(id: string) {
-    setStickers(current => current.filter(sticker => sticker.id !== id))
+    onEdit(document => ({ ...document, stickers: document.stickers.filter(sticker => sticker.id !== id) }))
     setSelectedStickerId(null)
     stickerTool.current?.focus()
   }
@@ -179,7 +190,7 @@ export function CollageEditor({ photos, layout, mosaics, stickers, setStickers, 
 
     try {
       const output = document.createElement('canvas')
-      drawCollage(output, images, layout, mosaics)
+      drawCollage(output, images, layout, mosaics, { background, gap })
       const context = output.getContext('2d')
       if (!context) { fail(); return }
       drawStickers(context, stickers)
@@ -202,8 +213,8 @@ export function CollageEditor({ photos, layout, mosaics, stickers, setStickers, 
       <h1 id="collage-heading">{preview ? '저장 미리보기' : '사진 배치'}</h1>
       {!preview && (
         <div className={styles.toolbar} role="group" aria-label="사진 레이아웃">
-          <Button aria-pressed={layout === 'grid'} onClick={() => onLayout('grid')} disabled={saving}>기본 배치</Button>
-          <Button aria-pressed={layout === 'featured'} onClick={() => onLayout('featured')} disabled={saving || photos.length < 3}>첫 사진 강조</Button>
+          <Button aria-pressed={layout === 'grid'} onClick={() => onEdit(document => document.layout === 'grid' ? document : { ...document, layout: 'grid' })} disabled={saving}>기본 배치</Button>
+          <Button aria-pressed={layout === 'featured'} onClick={() => onEdit(document => document.layout === 'featured' ? document : { ...document, layout: 'featured' })} disabled={saving || photos.length < 3}>첫 사진 강조</Button>
         </div>
       )}
       {!preview && (
@@ -211,12 +222,18 @@ export function CollageEditor({ photos, layout, mosaics, stickers, setStickers, 
           <Button aria-pressed={mosaicMode} disabled={!images.length || saving} onClick={() => setTool(mosaicMode ? null : 'mosaic')}>모자이크</Button>
           <Button ref={stickerTool} aria-pressed={stickerMode} disabled={!images.length || saving}
             onClick={() => setTool(stickerMode ? null : 'sticker')}>스티커</Button>
+          <Button variant="ghost" disabled={!canUndo || saving} onClick={() => {
+            onUndo()
+            setMosaicMessage('')
+          }}>실행 취소</Button>
           <Button variant="ghost" disabled={!mosaics.length || saving} onClick={() => {
-            onRemoveMosaic()
+            onEdit(document => ({ ...document, mosaics: document.mosaics.slice(0, -1) }))
             setMosaicMessage('마지막 모자이크를 지웠어요.')
           }}>마지막 모자이크 지우기</Button>
         </div>
       )}
+      {!preview && <CollageAppearanceControls background={background} gap={gap}
+        disabled={!images.length || saving} onEdit={onEdit} />}
       {!preview && mosaicMode && <p className={styles.meta}>사진 안에서 가릴 영역을 드래그하세요.</p>}
       {!preview && stickerMode && (
         <div className={styles.stickerControls}>
